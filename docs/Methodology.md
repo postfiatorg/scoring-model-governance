@@ -2,7 +2,7 @@
 
 How Post Fiat selects, re-confirms, and replaces the scoring model behind the Dynamic UNL — and how the models judging that choice are chosen.
 
-Model governance works the same way scoring does: it runs as a recurring, reproducible round. Rounds are foundation-operated at first and verified by validator sidecars from day one; over time operation itself moves to the validator side, mirroring the scoring pipeline's own path. The cadence (every few days or weeks) is not decided yet. The scoring model can change only through a completed governance round — there are no silent changes.
+Model governance works the same way scoring does: it runs as a recurring, reproducible round. Rounds are foundation-operated at first and verified by validator sidecars from day one; over time operation itself moves to the validator side, mirroring the scoring pipeline's own path. Rounds run monthly by default and are triggered automatically under the same scheduler discipline scoring rounds use; the cadence is configurable — an operational setting rather than governance state, since every round is frozen and self-contained, so cadence never affects a round's outcome. An admin-authenticated manual trigger can start a round on demand; a manual round runs the exact same frozen process. The scoring model can change only through a completed governance round — there are no silent changes.
 
 This repository is the public record. Every exam, grade, and decision is committed here and pinned to IPFS, under the same durability rules as scoring artifacts. Validator runtime never reads this repository: sidecars learn about the serving scoring model only from the per-round execution manifest, and the scoring service is configured with the selected model at deployment and emits that manifest.
 
@@ -10,7 +10,7 @@ This repository is the public record. Every exam, grade, and decision is committ
 
 The pool of models eligible for governance rounds is maintained as its own process. Each refresh:
 
-1. **Pull the open-weight models from a public benchmark leaderboard.** Which leaderboard is still to be decided — LiveBench is the leading candidate. Models are ordered by our criteria through the leaderboard's own filters. Blocklisted revisions (see below) are skipped: the slot passes to the model's next non-blocked revision or family sibling, or to the next model on the leaderboard.
+1. **Pull the open-weight models from LiveBench.** LiveBench is the pool's single source: its question set is regularly refreshed to resist contamination, its answers are scored against objective ground truth rather than a judge's preference, and one leaderboard keeps every refresh auditable. The leaderboard only sources candidates — the governance round does the real evaluation — so a hand-built aggregate across benchmark sites would add a formula to defend without adding signal. Models are ordered by our criteria through the leaderboard's own filters. Blocklisted revisions (see below) are skipped: the slot passes to the model's next non-blocked revision or family sibling, or to the next model on the leaderboard.
 2. **Keep only single-GPU models.** A model must fit on one GPU — a modest one or the strongest available, but exactly one — with at least 10% memory headroom. Single-GPU inference is the profile production determinism is proven on, so a model that needs more can never serve scoring.
 3. **Deduplicate families.** One model per family, keeping the best-ranked one. Pool members judge each other, and distinct families remove same-family judging bias.
 
@@ -42,11 +42,11 @@ Every refresh is published in this repository. A refresh affects only governance
 Before any candidate touches the exam, the foundation freezes and publishes:
 
 - the exam corpus,
-- the grading prompt — judge-independent, because any pool member may end up grading with it — together with the grading output schema and its parser, so grades are as mechanically checkable as scores; the governance counterparts of the scoring prompt and response parser the scoring pipeline already publishes,
+- the grading prompt — judge-independent, because any pool member may end up grading with it — together with the grading output schema and its parser (grades are 0–100 with one-decimal precision), so grades are as mechanically checkable as scores; the governance counterparts of the scoring prompt and response parser the scoring pipeline already publishes,
 - the candidate pool with pinned revisions and runtime profiles — the same pins an execution manifest carries for the scoring model,
 - the request-adaptation rule: the corpus's production requests embed the then-serving model's name and chat-template settings, so no other candidate can replay them verbatim; the rule derives exactly those fields — and nothing else — from each candidate's frozen runtime profile, leaving every other byte of the request untouched, so anyone can reconstruct the identical per-candidate requests,
 - the repeat count for the determinism check: three runs per input, frozen in the round manifest,
-- the incumbent-replacement margin for this round (see Decide),
+- the incumbent-replacement margin for this round: the standing 5 points, unless a prior published change to this repository has moved it (see Decide),
 - the judge-draw procedure: which validated ledger's hash is used, how it maps to a challenger, and the redraw ordering applied if a drawn judge fails its own mechanical checks,
 - the round's announcement formats, the set of output hashes sidecars commit to, and the commit and reveal windows — sized for exam workloads, which dwarf a scoring round's single inference.
 
@@ -80,7 +80,7 @@ Failing any rule removes the candidate from grading and books its revision into 
 
 ### 5. Grade
 
-The drawn judge grades each survivor's outputs against the frozen grading prompt — and that grade is the ranking. Cost and latency (GPU seconds, wall-clock per round) and operational feasibility (GPU class, cold-start behavior, the cost a validator operator bears to run it) are measured and published alongside the results for operators and future preference voting, but they are not combined into a weighted formula.
+The drawn judge grades each survivor's outputs against the frozen grading prompt, on the 0–100 scale with one decimal place — and that grade is the ranking. Cost and latency (GPU seconds, wall-clock per round) and operational feasibility (GPU class, cold-start behavior, the cost a validator operator bears to run it) are measured and published alongside the results for operators and future preference voting, but they are not combined into a weighted formula.
 
 The judge runs with the same discipline as any pool member: pinned revision, pinned SGLang image, deterministic profile, grades emitted in the frozen output schema and parsed by the frozen grading parser. It grades only what cannot be checked mechanically — the quality of scoring reasoning. Because judging is deterministic and every artifact is pinned, anyone can re-run this round's grading and get identical grades — and can re-grade any past round under any judge offline, so judge rotation never erases cross-round comparability.
 
@@ -98,7 +98,7 @@ This is verification, not voting: converged hashes prove the published results a
 
 The highest-graded survivor wins, subject to one standing rule:
 
-- **Incumbent margin.** The incumbent stays unless a challenger beats it by the pre-declared margin. Model churn has real cost — redeployment, re-verification, operator disruption — and a marginal winner does not justify it. The margin also absorbs the round-to-round grading noise that judge rotation introduces.
+- **Incumbent margin.** The incumbent stays unless a challenger beats it by the pre-declared margin — a standing 5 points on the 0–100 grade scale. Changing the standing value is itself a public change to this repository and takes effect only for rounds frozen after it. Model churn has real cost — redeployment, re-verification, operator disruption — and a marginal winner does not justify it. The margin also absorbs the round-to-round grading noise that judge rotation introduces.
 
 The margin protects a healthy incumbent only. An incumbent that is itself mechanically disqualified loses that protection: the highest-graded surviving challenger wins outright, and the incumbent enters the blocklist like any other failed candidate. If no challenger survives either, the round closes without a replacement: the incumbent keeps serving by necessity — its blocklist entry takes effect once it is replaced, barring any return as a challenger — and rounds keep running until one produces a winner. Either way the failure is a production alarm, because it means the live scorer no longer upholds the determinism discipline scoring verification depends on.
 
