@@ -4,7 +4,7 @@
 
 - Work in feature branches and open pull requests against `main`.
 - CI (tests against PostgreSQL + Docker build) must pass before merging.
-- Environment branches (`devnet`, `testnet`) and deployment workflows arrive with roadmap step G.2.2; until then `main` is the only long-lived branch.
+- Pushing to an environment branch (`devnet`, `testnet`) deploys that environment automatically — never push feature work there directly. Promotion is merging `main` into the environment branch.
 
 ## Conventions
 

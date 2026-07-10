@@ -31,6 +31,27 @@ pytest tests/
 
 `DATABASE_URL` overrides the default local connection string when set.
 
+## Deployment
+
+The service follows the PostFiat branch-based deployment pattern:
+
+| Environment | Branch | Docker image tag | Compose file |
+|-------------|--------|------------------|--------------|
+| Local dev | `main` | built from source | `docker-compose.yml` |
+| Devnet | `devnet` | `agtipft/scoring-model-governance:devnet-latest` | `docker-compose.devnet.yml` |
+| Testnet | `testnet` | `agtipft/scoring-model-governance:testnet-latest` | `docker-compose.testnet.yml` |
+
+Pushing to an environment branch runs the tests, builds and pushes the Docker image (the environment tag plus an immutable commit tag), connects to the environment's Vultr host over SSH, writes the runtime `.env` from GitHub secrets, and recreates the containers. Each host needs a one-time preparation before its first deploy: install Docker, allow ports 22 and 8002 through the firewall, and create `/opt/scoring-model-governance`. The service listens on port 8002 over HTTP; DNS and TLS termination follow once the environment gets a hostname. Testnet is wired but dormant until its host is provisioned.
+
+### GitHub secrets
+
+| Secret | Description | Per-environment |
+|--------|-------------|-----------------|
+| `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | Docker Hub login and access token | Shared |
+| `VULTR_SSH_USER` / `VULTR_SSH_KEY` | SSH user and private key for the Vultr hosts | Shared |
+| `VULTR_DEVNET_HOST` / `VULTR_TESTNET_HOST` | Environment host IP | Per-environment |
+| `DEVNET_DB_PASSWORD` / `TESTNET_DB_PASSWORD` | PostgreSQL password, written into the host `.env` at deploy time | Per-environment |
+
 ## Project structure
 
 ```text
