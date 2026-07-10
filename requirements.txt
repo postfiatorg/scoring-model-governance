@@ -1,0 +1,7 @@
+fastapi>=0.115
+httpx>=0.28
+psycopg2-binary>=2.9
+pydantic-settings>=2.5
+pytest>=8.0
+python-dotenv>=1.0
+uvicorn[standard]>=0.30

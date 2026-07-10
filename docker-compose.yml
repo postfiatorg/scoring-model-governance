@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: scoring_model_governance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d scoring_model_governance"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  governance:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:dev_password@postgres:5432/scoring_model_governance
+    ports:
+      - "8002:8000"
+    command: uvicorn governance_service.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./governance_service:/app/governance_service
+      - ./migrations:/app/migrations
+
+volumes:
+  postgres_data:
