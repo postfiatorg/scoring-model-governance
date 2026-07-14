@@ -1,0 +1,46 @@
+# Curated mapping from LiveBench model keys to deployable HuggingFace artifacts.
+#
+# Maintained by hand, validated by machine: every refresh resolves each entry
+# against the HuggingFace API, and the scheduled mapping-freshness workflow
+# fails when an open-weight leaderboard model has no entry here. A model
+# without an entry is reported as unmapped and stays ineligible until mapped —
+# never guessed.
+#
+# hf_repo follows the methodology's artifact preference order: the vendor's
+# official FP8 release when one exists as a publicly pinnable repository,
+# otherwise the vendor's full-precision weights. family feeds the one-per-
+# family deduplication applied by the pool rules.
+
+qwen3.6-27b:
+  hf_repo: Qwen/Qwen3.6-27B-FP8
+  family: qwen
+  note: Incumbent artifact; matches the production execution manifest.
+
+glm-5.2:
+  hf_repo: zai-org/GLM-5.2-FP8
+  family: glm
+
+deepseek-v4-pro:
+  hf_repo: deepseek-ai/DeepSeek-V4-Pro
+  family: deepseek
+  note: Vendor ships FP8 natively in the base repository.
+
+deepseek-v4-flash:
+  hf_repo: deepseek-ai/DeepSeek-V4-Flash
+  family: deepseek
+  note: Vendor ships FP8 natively in the base repository.
+
+kimi-k2.7-code:
+  hf_repo: moonshotai/Kimi-K2.7-Code
+  family: kimi
+  note: Vendor's only public artifact is INT4 pack-quantized; the variant
+    rule keeps it pool-ineligible until an FP8 or full-precision release
+    exists.
+
+# Known skips: models whose artifact is known to be unresolvable, per the
+# methodology's skip rule. Recording them here keeps the freshness check
+# meaningful — it fails only on models in neither list.
+kimi-k2.6-thinking:
+  skip_reason: No public weight repository identified for the scored
+    leaderboard variant; the closest repo (moonshotai/Kimi-K2.6) cannot be
+    confirmed as the thinking variant.

@@ -1,0 +1,702 @@
+{
+ "id": "Qwen/Qwen3.6-27B-FP8",
+ "sha": "e89b16ebf1988b3d6befa7de50abc2d76f26eb09",
+ "gated": false,
+ "tags": [
+  "transformers",
+  "safetensors",
+  "qwen3_5",
+  "image-text-to-text",
+  "conversational",
+  "license:apache-2.0",
+  "endpoints_compatible",
+  "fp8"
+ ],
+ "siblings": [
+  {
+   "rfilename": "config.json",
+   "blobId": "c6b5a44a7ddac7def33b4b01be05937642a595fa",
+   "size": 51346
+  },
+  {
+   "rfilename": "generation_config.json",
+   "blobId": "023756cfadf88e5bf69eefeee3e172f38c448d64",
+   "size": 202
+  },
+  {
+   "rfilename": "layers-0.safetensors",
+   "blobId": "ff66e001589f558d7402b9080ed05cb9629e5deb",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "5a6c052e37a754549e8f81c6fb32b050419f0fc2f71598817e08d0446b3f309d",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-1.safetensors",
+   "blobId": "003c6034cc0f84005a1f8d1d693ead9e8a25c7ee",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "9a2efd1048386e560c8241c7b972e213b516f0cbeafc4de6f486bd7faddb8c39",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-10.safetensors",
+   "blobId": "989e80c6c5d74f71567f7495b0828deac1c93596",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "ebc4fd84671c2ac2d8d7b8da3707ed5d30738771a22eecc883d707521ed513a0",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-11.safetensors",
+   "blobId": "a6bce2c7dedc55b940d91e95a13aa93d4aee0ff0",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "9daf0f0b763489c0869061669293f93213d6060b1b0c88061b53bb97f9082cd6",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-12.safetensors",
+   "blobId": "ffee2de108b1ce4977eea3db4f7540113558cddc",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "922729fcaedaece39e7b0fba137e3b900fbc3fe6bd8a85b16a215658be86938f",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-13.safetensors",
+   "blobId": "611dc91e625e4e2571f3281edf8fd0ea33fcae44",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "61c0a820b09d58e45e516c56532007155b0fd214c11fa8906640c9217da95c84",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-14.safetensors",
+   "blobId": "97d64dbb7eb4ce1cd0ada7fd0ca659341746c2eb",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c2faab3a2ecddde0e762b3870c75f6fd83886edbabbd99ac40d641122d29e652",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-15.safetensors",
+   "blobId": "ec6a1725ec566475a275cd6a45f49e73fedb03b7",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "e75fbe4de60c0420912b91f379c29c95a49644feee6fe8a0bd3dd638ae07ea2b",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-16.safetensors",
+   "blobId": "bfae510a30991b7063526cddce2efd4adce64cdf",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "84776e1d0a62c40730a4bc0f0e2c68242ba9a6150975d8992747fb6ecc0ebfcc",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-17.safetensors",
+   "blobId": "2ee0114a27eeb03d5506d847fbff1dce07113746",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c7e32717b97f9553d62734f01bed4cc970dcf6bd3d5ba67c7704290656523d7e",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-18.safetensors",
+   "blobId": "51fd9835614edf163653bb2101ba9515121d4ed7",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "1c6aed5f416dee34bb7ccfc322e0aa33f192b40afeab4b69fce784b2b349e253",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-19.safetensors",
+   "blobId": "9eaf2c93becd92327346d9a948876a2163c1abf0",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "63e1b8af41de9851ed279f9d4f42566febf81d13ae47e469ea1009a26c6b64e0",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-2.safetensors",
+   "blobId": "c464bcabb59d3b92d68a179cc96f1478840187e8",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "c2709097f77e8ec7204f908f54d7b84343139163e600815789124cbf15a709c6",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-20.safetensors",
+   "blobId": "abb91e8421fd32b139a8d02b3b354549d31d8ae0",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c5945b2e40f3d97cb01d0cedcb60ea36f61ab585179ab0c02fdeec3d360f724d",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-21.safetensors",
+   "blobId": "7054a3953a00798770abe1bb72a633011acbbbf1",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c8a7696ad5cd1be016cfc553351ee4b588f3d972084dd47028db8dba9b113870",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-22.safetensors",
+   "blobId": "33bde4125e9112f10833b463e4f6f393ef79d01c",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "08481a6a46057d0bcdcd2598d4f67d5f821725fc483800cd360c2d7047907e08",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-23.safetensors",
+   "blobId": "9ca11e31a80313c88474cc0ff013503317aff7f3",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "13b2ba6536c77330fa1c40e91c4c707d5086803299e0f57dd03142bb28faaaa4",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-24.safetensors",
+   "blobId": "83610003ae280bfd5d49bfce60a52f78a0705917",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "0f7855ee6b018e707d015f445f7e8b9542003104dbd0436e83e8c0dec73bdd17",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-25.safetensors",
+   "blobId": "80c0a29546a93e984819f0a8e468cf8fbe1d533a",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "fe49c034e095263e51b391895ccb5098741e06d75a6788769beb72fd50708846",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-26.safetensors",
+   "blobId": "efd7bdcfe638345528bf3ba9cae9af0015792e17",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "14f086ff505e9df89c2fb938c947b0d023f6f19d3cecdc7f03a70caf36ea6ed4",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-27.safetensors",
+   "blobId": "9d76483c7854711c2ae9899e996166ae10fb66bb",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "4fa89a43e7196b18e6c67478aeedc1b3ab4853fa3bc4305d4ac73341b70e7e24",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-28.safetensors",
+   "blobId": "d1bd2c9a2e2454bb0d5c23d741fa744718b89248",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "f10aecd4f9800052bbf1ad2cca939eb44dc205d42ff546096ce9212bd6eae411",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-29.safetensors",
+   "blobId": "814105fbd05e5046b839d297a58a282cdc79ff60",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "633058fe6f1ec434c79e5c50d04c83b1955d52ca1889b1adca0e2db1cad9fa16",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-3.safetensors",
+   "blobId": "4f51d9646f55a984b1fa71b7caaa31674e11a409",
+   "size": 372313744,
+   "lfs": {
+    "sha256": "a874cf17d3480894aa13eb34568e1025f10c4d6b96f483cd93be583849312a0f",
+    "size": 372313744,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-30.safetensors",
+   "blobId": "fcd3b2f45058ef009d7c9cf37969ab41d420abd3",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "f9af47cefbdb300129c25eee1127c50629d9a2eba7f862a58a430a2cb378cf55",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-31.safetensors",
+   "blobId": "4918f1477be1ecaffbfafd4ea28618580441d696",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "2a2e87f569b5da06a87b83df628cb27f491f3dbed55ca82054820cb382cffd2e",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-32.safetensors",
+   "blobId": "5f7c5a28970bbb9570dc24fee973f384c9f6f426",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "ca63c9dc522a1f0efd39e2cd7f5fb0efdb4274eabce5c15cc9aab11463cb3bb8",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-33.safetensors",
+   "blobId": "9be5b89432c39c6719a4ac2748ce3fe2711fa23a",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "bb8eb220efa6a599a4ee29914d59ca26fe13fe64ec6f9a5ccff300432abc572b",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-34.safetensors",
+   "blobId": "aad790f30f7737d5df00d8873df4d2648b5274dd",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "6e08147ff5c8e0d5d7207d62ede78d6194f1453165cfab940743ff327bb0e6e5",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-35.safetensors",
+   "blobId": "59e1fed6289253e434a535b3d7897e4f35683ad1",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "f4391ffd8245e648eeaad69954721f106ea0423a56f9abee921d3d2880d98c03",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-36.safetensors",
+   "blobId": "57dd99dca1cd060bcc7badaf9b44f2527a80d542",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "5b077d63785d5c2b20ab5c0b8895b08941af08bb5685a1b6a5a3292c3eac638f",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-37.safetensors",
+   "blobId": "f995740688fa292e964669495ac75feccd12ed2e",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "d38c28d8c86cc147e5edc1935dec46687a6b3a8bc0d712e829003dd9cd4fab7d",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-38.safetensors",
+   "blobId": "a571d04aa71bcb536b7cc1fcbbdd2dd456c28374",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "1628a41fa5d3dbcf2ffde423530a9e94e7228e247e922e2269bd348071a76365",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-39.safetensors",
+   "blobId": "eead3753b5cff587e76c2d6621395be0fbf038a8",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "889c827bbff3fa6b78558dcdfd24670894b8a450395ec418e7a4f3202789e0b1",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-4.safetensors",
+   "blobId": "65cfb976fc8d6167f99a85d483b8eb28f03863fc",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "9eb31d85023776894347a56101ee067f369d0d3c024f1331f5c7cba1f45b6df4",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-40.safetensors",
+   "blobId": "1084eef6a4c8498122d3c5201291a4c2f2823bd7",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "5f90d2b2d16e5c51a078f21eed843d80c22af71401669577d274ea7f2c1ce95f",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-41.safetensors",
+   "blobId": "73dc25142c085add702dbea516e03ea86f2884bc",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "80877a16835f7311a112ad0bbaf1d19997142ea3e1df95ffe446fd52ad1f80d8",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-42.safetensors",
+   "blobId": "155fb82bce051360ec8b38b3ebc6cfed49e46887",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c1bf34d1a3e4d36b342c5c680bb12c4ce74f02530dff33b735fad27470ef2594",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-43.safetensors",
+   "blobId": "e5198807ec9a9039141e221409432de3fbc5063c",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "10eceff499a24e0072a40b960671f00fc5012d7451f22cb6883f358e085ce276",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-44.safetensors",
+   "blobId": "95ff8cf17d85a9a6dd2b7361756de0cfd8045a97",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "673543b94e59003265ae648bba11389c6735ee3264ec164108b6db99f1219587",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-45.safetensors",
+   "blobId": "3d1ab6dd3a476dd64ef6f66ab3a985971a3aafa5",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "77b8c7a9cc451a378ee8d6927ce1c4b9664adb83c4786440eec099591dc98f32",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-46.safetensors",
+   "blobId": "31e93d441a4a420e8cd2c2a4896f79a9e298d01e",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "9ee06b8029b7812644bd5fb01b8bfea7b640353769d094ae59d8c82d986a8b7b",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-47.safetensors",
+   "blobId": "349cfba980c982f5bd352a03e1c0851dba48e3e3",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "6a8e0ddb389485965cd30bd0a90d1be5e1acb65cb6311ce337199f268c3120f6",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-48.safetensors",
+   "blobId": "c8ac778f3a5e54440a5d06ab0c4392ed4b90817b",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "70bd74dcdf4ea8b09e1ae3463977a05aba73f2c02397491bb641a0a3ca6832a3",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-49.safetensors",
+   "blobId": "14200f67b568f56a5f8bdb8792b9689fd7cf94a9",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "a3481f971433ecc9041f44a555e443ff124e037601b36eab0bb3057946e041e4",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-5.safetensors",
+   "blobId": "3e0c13bfd430ce94b82590632d92a9718813fd16",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "a8c9ea40638fd66bd8ab21940df215e7921b4af04646d758d74425be011a9b6f",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-50.safetensors",
+   "blobId": "20a83aa1346e6ade5b95d5cea014d712be045fe0",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "1aa60d9cb7f867a2033be0b1ff053049f09a6623826dd0d37daed3281479b875",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-51.safetensors",
+   "blobId": "25db824d245f311a9d15181353ba872cf9ca5554",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "511f64772c1a5a15292eb1c48166b9d206088aed283185e10877fc43308097bd",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-52.safetensors",
+   "blobId": "e479c4a2bdcad510a2729c8f50019c25e431c25d",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "92c35a4e850b4c0b87a1eab42c47996504e062a8a11699ada20fcea0b88f36c7",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-53.safetensors",
+   "blobId": "86f85353f0dd59d522d126100480c33a4d1ba9eb",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "ab48cad204502ddbf17f5ee2d5e52457baac965300cc15e8a25f35c843b4d526",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-54.safetensors",
+   "blobId": "8ea5ad1e5c91b615f59c818b8fe28fd9e2faf2d9",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "2804cee95e18e9e516b9490c36ea7f41553a3fcb4455cf44a361d6086ed214a3",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-55.safetensors",
+   "blobId": "9792da7052ce9469f38f88fb7441eb3f699fb7eb",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "543841981255fce51f0d84fe2db4de580594f6c6d6a590ae47ffbdbd01211571",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-56.safetensors",
+   "blobId": "58a897040c16ac3ee470f9e9c393c3732a3d825d",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "9847da2610e67b1f0ff39d8d103c7814f95bb8ede4204d5ae3055a8589bb0313",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-57.safetensors",
+   "blobId": "1fb7fefea175dc1d34e21f254dee8ba521303eb1",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "32fe173c033e46648bc71bc8e5036565234c0c13ac66acb2ad84c9cbb426b90e",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-58.safetensors",
+   "blobId": "1c8931e048ae869969c1638b6739cdc1dedabdf5",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "c9858a0c4bd8cb980829a45d3f9ca52a0bd506c6a0775eb179d3e5ebfaae7867",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-59.safetensors",
+   "blobId": "0aa8ffa1e03a486d78690b5e4de72c12068fcd55",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "3c30fd14e883c15af50e2f647c2d0b8f3a2fca96904e4b37cc8bb1956a133606",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-6.safetensors",
+   "blobId": "37cfc6cf82f3dd0a328d595f15c3906637dda623",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "ad8b704be0cde8a774c4a49af59336d2b48b574446c1eddff8ba35d20d05ae69",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-60.safetensors",
+   "blobId": "ce41b074dfd18bc67b1f517f8c60675ddc1d1db7",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "1f24aa7a99e72f658089462b258613b11d06d6e11733ff5d5f864c663a190f92",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-61.safetensors",
+   "blobId": "6742ad5bb80993112e32ffcb9d5175c1a0bfb417",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "0b083f4afca3538f87545d4fc50817292fc80061a731a5f0235f5c406be87b45",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-62.safetensors",
+   "blobId": "a1bff6ce7a8388f7499de46a3793fcd47d54d976",
+   "size": 383865472,
+   "lfs": {
+    "sha256": "b1e4c80f95241cc7d269d7cf6a35291c8b455f2d4f1381e4eafbfccb35add125",
+    "size": 383865472,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-63.safetensors",
+   "blobId": "809d6f3b23bf4821e8603e276fa157e13131445d",
+   "size": 372313760,
+   "lfs": {
+    "sha256": "7e27ec71df803eb38ba93aead54daaf1110d3f7124416443a30a3c81abc1c805",
+    "size": 372313760,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-7.safetensors",
+   "blobId": "f8819261409c650ab7f82a8e21dbc56728ecbc14",
+   "size": 372313744,
+   "lfs": {
+    "sha256": "2acb7e8d035d730a1c81c36c3b20ca15020b89d2bcd4462259f2ecb2a8dcb828",
+    "size": 372313744,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-8.safetensors",
+   "blobId": "2cc47f0265193ee420dac7e964699d4946dfbcec",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "81ebe095241562b2e2ace8875e2771f0cdb68e76286a18506ea19a749b8de9b4",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "layers-9.safetensors",
+   "blobId": "c1cbf697de531918cfd2b89f6c7d84c8806e98e1",
+   "size": 383865448,
+   "lfs": {
+    "sha256": "fdd926f3e8c335eb21a2b41cf635cb241f337a5d47310ef41ae3d43bf53410c3",
+    "size": 383865448,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "mtp.safetensors",
+   "blobId": "cf1ec91c271c607100624512976c2f9144a1c7aa",
+   "size": 477202224,
+   "lfs": {
+    "sha256": "9557770331f1f648eb96039f2a1e7cdc5742fe15c0f5777c43063b2c12a60f4c",
+    "size": 477202224,
+    "pointerSize": 134
+   }
+  },
+  {
+   "rfilename": "outside.safetensors",
+   "blobId": "45a7299f51b73315e88957d4fc54e9c7223689eb",
+   "size": 6007102112,
+   "lfs": {
+    "sha256": "27a91100d904f6acc1c86d08675691199e1fe2da5da613106fb01ae4809b3ac1",
+    "size": 6007102112,
+    "pointerSize": 135
+   }
+  },
+  {
+   "rfilename": "preprocessor_config.json",
+   "blobId": "2ea84a437d448ff71b08df68fdd949d5cc4ebb64",
+   "size": 390
+  },
+  {
+   "rfilename": "tokenizer_config.json",
+   "blobId": "28d96ff303d1d20350185caf4bf037045916ed35",
+   "size": 16718
+  },
+  {
+   "rfilename": "video_preprocessor_config.json",
+   "blobId": "3ba673a5ad7d4d13f54155ecd38b2a94a6dac8fe",
+   "size": 385
+  }
+ ]
+}

@@ -56,16 +56,50 @@ Pushing to an environment branch runs the tests, builds and pushes the Docker im
 
 ```text
 governance_service/
-├── main.py          # FastAPI app factory + startup lifecycle
-├── config.py        # Environment-based settings
-├── database.py      # PostgreSQL connection + migration runner
-└── api/
-    └── health.py    # /health liveness endpoint
-migrations/          # Numbered SQL migrations, applied in order
-tests/               # pytest suite (real database, like CI)
-docs/                # The governance methodology and public records
+├── main.py            # FastAPI app factory + startup lifecycle
+├── config.py          # Environment-based settings
+├── database.py        # PostgreSQL connection + migration runner
+├── freshness.py       # Mapping/schema freshness check (python -m governance_service.freshness)
+├── model_mapping.yaml # Curated LiveBench key → HuggingFace artifact mapping
+├── api/
+│   └── health.py      # /health liveness endpoint
+├── clients/
+│   ├── livebench.py   # Leaderboard data fetch, strict parsing, site-exact averaging
+│   └── huggingface.py # Revision pinning, weight sizes, config, license/gating
+├── models/
+│   └── candidates.py  # Candidate-sourcing data models
+└── services/
+    ├── gpu_fit.py     # Dtype-aware cheapest-fit GPU assignment
+    └── candidate_sourcing.py # One auditable sourcing pass over a release
+migrations/            # Numbered SQL migrations, applied in order
+tests/                 # pytest suite (real database for DB paths, HTTP mocked
+                       # over snapshot fixtures of live leaderboard data)
+docs/                  # The governance methodology and public records
 ```
+
+## Candidate sourcing (G.2.3)
+
+The candidate-sourcing layer reads one LiveBench release (the latest; the
+methodology's viable-pool fallback arrives with the pool rules in G.2.4),
+filters to open-weight models, resolves each through
+`governance_service/model_mapping.yaml` to a pinned HuggingFace artifact, and
+assigns the cheapest fitting GPU from the supported table (L40S, A100, H100,
+H200) using exact weight bytes plus a config-derived KV-cache estimate under
+the production SGLang memory fraction. Models without a mapping entry are
+reported as unmapped, never guessed — add a mapping line to make one eligible,
+or a `skip_reason` entry to record a model whose artifact is known to be
+unresolvable.
+
+Run one live pass locally:
+
+```bash
+python -m governance_service.freshness
+```
+
+The scheduled Mapping Freshness workflow (`.github/workflows/mapping-freshness.yml`)
+runs the same check weekly and fails when an open-weight leaderboard model is
+unmapped or the upstream data files no longer parse.
 
 ## CI
 
-GitHub Actions runs the test suite against a PostgreSQL 16 service container and builds the Docker image on every pull request and push to `main`.
+GitHub Actions runs the test suite against a PostgreSQL 16 service container and builds the Docker image on every pull request and push to `main`. A separate scheduled workflow checks mapping freshness against the live LiveBench data weekly.
