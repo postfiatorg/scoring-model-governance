@@ -51,30 +51,36 @@ Pushing to an environment branch runs the tests, builds and pushes the Docker im
 | `VULTR_SSH_USER` / `VULTR_SSH_KEY` | SSH user and private key for the Vultr hosts | Shared |
 | `VULTR_DEVNET_HOST` / `VULTR_TESTNET_HOST` | Environment host IP | Per-environment |
 | `DEVNET_DB_PASSWORD` / `TESTNET_DB_PASSWORD` | PostgreSQL password, written into the host `.env` at deploy time | Per-environment |
+| `DEVNET_ADMIN_API_KEY` / `TESTNET_ADMIN_API_KEY` | Admin API key for the pool-refresh trigger, written into the host `.env` at deploy time | Per-environment |
 
 ## Project structure
 
 ```text
 governance_service/
-├── main.py            # FastAPI app factory + startup lifecycle
-├── config.py          # Environment-based settings
-├── database.py        # PostgreSQL connection + migration runner
-├── freshness.py       # Mapping/schema freshness check (python -m governance_service.freshness)
-├── model_mapping.yaml # Curated LiveBench key → HuggingFace artifact mapping
+├── main.py              # FastAPI app factory + startup lifecycle
+├── config.py            # Environment-based settings
+├── database.py          # PostgreSQL connection, advisory locks, migration runner
+├── freshness.py         # Mapping/schema freshness check (python -m governance_service.freshness)
+├── model_mapping.yaml   # Curated LiveBench key → HuggingFace artifact mapping
+├── model_blocklist.yaml # Standing blocklist of revisions that failed past rounds
 ├── api/
-│   └── health.py      # /health liveness endpoint
+│   ├── _helpers.py      # Admin auth and refresh-lock preconditions
+│   ├── health.py        # /health liveness endpoint
+│   └── pool.py          # Admin-guarded manual pool-refresh trigger
 ├── clients/
-│   ├── livebench.py   # Leaderboard data fetch, strict parsing, site-exact averaging
-│   └── huggingface.py # Revision pinning, weight sizes, config, license/gating
+│   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
+│   └── huggingface.py   # Revision pinning, weight sizes, config, license/gating
 ├── models/
-│   └── candidates.py  # Candidate-sourcing data models
+│   ├── candidates.py    # Candidate-sourcing data models
+│   └── pool.py          # Pool-refresh data models
 └── services/
-    ├── gpu_fit.py     # Dtype-aware cheapest-fit GPU assignment
-    └── candidate_sourcing.py # One auditable sourcing pass over a release
-migrations/            # Numbered SQL migrations, applied in order
-tests/                 # pytest suite (real database for DB paths, HTTP mocked
-                       # over snapshot fixtures of live leaderboard data)
-docs/                  # The governance methodology and public records
+    ├── gpu_fit.py       # Dtype-aware cheapest-fit GPU assignment
+    ├── candidate_sourcing.py # One auditable sourcing pass over a release
+    └── pool_refresh.py  # Pool rules, release fallback, refresh persistence
+migrations/              # Numbered SQL migrations, applied in order
+tests/                   # pytest suite (real database for DB paths, HTTP mocked
+                         # over snapshot fixtures of live leaderboard data)
+docs/                    # The governance methodology and public records
 ```
 
 ## Candidate sourcing (G.2.3)
@@ -99,6 +105,42 @@ python -m governance_service.freshness
 The scheduled Mapping Freshness workflow (`.github/workflows/mapping-freshness.yml`)
 runs the same check weekly and fails when an open-weight leaderboard model is
 unmapped or the upstream data files no longer parse.
+
+## Pool refresh (G.2.4)
+
+A pool refresh turns one sourcing pass into an actual candidate pool under
+the methodology's rules: blocklisted revisions are excluded (their slot
+passing to the next eligible candidate), only vendor FP8 or full-precision
+artifacts are eligible, every challenger must fit a single GPU, and one
+model per family survives — with the incumbent a pool member by right,
+exempt from every rule, and its family's challenger slot open to a
+better-ranked successor. A release is viable only when at least two
+challengers survive; the refresh walks back one release at a time until
+one qualifies and otherwise records a no-viable-pool finding that leaves
+the current pool standing.
+
+Every refresh is persisted in full: the `pool_refreshes` row carries the
+walk (each considered release with its challenger count, fallback reason,
+and unmapped models), and `pool_refresh_candidates` holds every evaluated
+candidate's rule outcome for every considered release. The standing
+blocklist lives in `governance_service/model_blocklist.yaml` — curated by
+hand like the model mapping, one entry per pinned revision that failed a
+past round — and is mirrored into the `blocklist` table when a refresh
+consumes it.
+
+A refresh is triggered manually (the development and operations path;
+scheduling arrives with round orchestration):
+
+```bash
+curl -X POST http://localhost:8002/api/governance/pool/refresh \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+The endpoint mirrors the dynamic-unl-scoring trigger contract: 202 with
+the refresh id when started, 409 while another refresh holds the advisory
+lock, 403 when `ADMIN_API_KEY` is unset or wrong. The refresh runs in a
+background thread; watch progress in the service log or the
+`pool_refreshes` row.
 
 ## CI
 

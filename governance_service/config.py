@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_PATH = REPO_ROOT / "migrations"
 MODEL_MAPPING_PATH = Path(__file__).resolve().parent / "model_mapping.yaml"
+MODEL_BLOCKLIST_PATH = Path(__file__).resolve().parent / "model_blocklist.yaml"
 
 
 class Settings(BaseSettings):
@@ -62,6 +63,29 @@ class Settings(BaseSettings):
     )
     hf_token: str | None = Field(
         default=None, description="Optional HuggingFace API token"
+    )
+
+    # -------------------------------------------------------------------------
+    # Admin
+    # -------------------------------------------------------------------------
+    admin_api_key: str = Field(
+        default="",
+        description="API key for admin endpoints (refresh trigger). "
+        "Endpoint disabled if empty.",
+    )
+
+    # -------------------------------------------------------------------------
+    # Incumbent
+    # -------------------------------------------------------------------------
+    incumbent_hf_repo: str = Field(
+        default="Qwen/Qwen3.6-27B-FP8",
+        description="HuggingFace repository of the incumbent scoring model, "
+        "a pool member by right",
+    )
+    incumbent_revision: str | None = Field(
+        default=None,
+        description="Pinned revision of the incumbent's serving artifact; "
+        "the repository's current revision is used when unset",
     )
 
     # -------------------------------------------------------------------------

@@ -16,6 +16,7 @@ from governance_service.config import MODEL_MAPPING_PATH
 from governance_service.models import (
     CandidateDescriptor,
     MappingEntry,
+    ModelArtifact,
     SourcingReport,
 )
 from governance_service.services.gpu_fit import cheapest_fit
@@ -74,14 +75,22 @@ def source_candidates(
     client: httpx.Client,
     release: str | None = None,
     mapping_path: Path = MODEL_MAPPING_PATH,
+    registry_raw: bytes | None = None,
+    artifact_cache: dict[str, ModelArtifact] | None = None,
 ) -> SourcingReport:
-    """Run one sourcing pass against a release (latest when not given)."""
+    """Run one sourcing pass against a release (latest when not given).
+
+    A release walk (the pool refresh's fallback) passes the shared registry
+    bytes and an artifact cache so per-release passes do not re-fetch what
+    cannot change within one refresh.
+    """
     mapping, skips = load_mapping(mapping_path)
 
     if release is None:
         release = livebench.discover_releases(client)[-1]
 
-    registry_raw = livebench.fetch_registry(client)
+    if registry_raw is None:
+        registry_raw = livebench.fetch_registry(client)
     table_raw, categories_raw = livebench.fetch_release_files(client, release)
 
     registry = livebench.parse_registry(registry_raw)
@@ -102,7 +111,12 @@ def source_candidates(
             unmapped.append(standing.model_key)
             continue
 
-        artifact = huggingface.fetch_artifact(client, entry.hf_repo)
+        if artifact_cache is not None and entry.hf_repo in artifact_cache:
+            artifact = artifact_cache[entry.hf_repo]
+        else:
+            artifact = huggingface.fetch_artifact(client, entry.hf_repo)
+            if artifact_cache is not None:
+                artifact_cache[entry.hf_repo] = artifact
         gpu = cheapest_fit(artifact)
         candidates.append(
             CandidateDescriptor(

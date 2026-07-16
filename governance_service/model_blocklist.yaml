@@ -1,0 +1,17 @@
+# Standing blocklist: pinned model revisions that failed their mechanical
+# checks in a past governance round. Maintained by hand, validated by
+# machine, exactly like model_mapping.yaml.
+#
+# Entries are added only when a round closes, never mid-round, and a round
+# abandoned because the foundation's results were shown wrong adds none. A
+# blocked revision stays blocked — a new revision of the same model is a
+# new candidate. Each entry carries a one-sentence reason and a reference
+# to the round record holding the evidence.
+#
+# Entry shape:
+#   - hf_repo: org/name
+#     revision: full commit sha of the blocked revision
+#     reason: one sentence describing the mechanical failure
+#     round_reference: the round record holding the evidence
+#
+# No governance round has closed yet, so the blocklist is empty.

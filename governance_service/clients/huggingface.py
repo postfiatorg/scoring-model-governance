@@ -143,11 +143,19 @@ def _parse_geometry(repo_id: str, source: dict) -> ModelGeometry:
     )
 
 
-def fetch_artifact(client: httpx.Client, repo_id: str) -> ModelArtifact:
-    """Resolve one repository to a pinned artifact with fit inputs."""
-    info_raw = _get(
-        client, f"{settings.hf_api_base_url}/api/models/{repo_id}?blobs=true"
-    )
+def fetch_artifact(
+    client: httpx.Client, repo_id: str, revision: str | None = None
+) -> ModelArtifact:
+    """Resolve one repository to a pinned artifact with fit inputs.
+
+    Without a revision the repository's current revision is pinned; with
+    one, that exact revision is resolved (used for the incumbent, whose
+    serving artifact is already pinned by the execution manifest).
+    """
+    info_url = f"{settings.hf_api_base_url}/api/models/{repo_id}"
+    if revision is not None:
+        info_url = f"{info_url}/revision/{revision}"
+    info_raw = _get(client, f"{info_url}?blobs=true")
     try:
         info = json.loads(info_raw)
     except ValueError as exc:
