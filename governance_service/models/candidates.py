@@ -76,11 +76,17 @@ class MappingEntry(BaseModel):
 
 
 class SnapshotFile(BaseModel):
-    """Content hash of one raw upstream file fetched during sourcing."""
+    """One raw upstream file fetched during sourcing.
+
+    The raw bytes ride along so a refresh can pin its exact inputs to
+    IPFS; published records and database rows carry only the hash
+    metadata (dump with ``exclude={"content"}``).
+    """
 
     name: str
     sha256: str
     size_bytes: int
+    content: bytes
 
 
 class CandidateDescriptor(BaseModel):

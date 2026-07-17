@@ -30,6 +30,7 @@ from governance_service.services.pool_refresh import (
     execute_refresh,
     get_current_pool,
 )
+from governance_service.services.record_publisher import PUBLICATION_SKIPPED
 
 INCUMBENT_REPO = "Qwen/Qwen3.6-27B-FP8"
 INCUMBENT_ARTIFACT = ModelArtifact(
@@ -221,6 +222,14 @@ def test_refresh_completes_on_viable_latest_release(db, network):
         "a/challenger-a",
         "b/challenger-b",
     ]
+
+    # Records are unconfigured in tests, so publication is visibly skipped.
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT publication_status FROM pool_refreshes WHERE id = %s", (refresh_id,)
+    )
+    assert cursor.fetchone()[0] == PUBLICATION_SKIPPED
+    cursor.close()
 
 
 def test_refresh_falls_back_to_older_release(db, network):

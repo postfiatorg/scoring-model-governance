@@ -52,6 +52,9 @@ Pushing to an environment branch runs the tests, builds and pushes the Docker im
 | `VULTR_DEVNET_HOST` / `VULTR_TESTNET_HOST` | Environment host IP | Per-environment |
 | `DEVNET_DB_PASSWORD` / `TESTNET_DB_PASSWORD` | PostgreSQL password, written into the host `.env` at deploy time | Per-environment |
 | `DEVNET_ADMIN_API_KEY` / `TESTNET_ADMIN_API_KEY` | Admin API key for the pool-refresh trigger, written into the host `.env` at deploy time | Per-environment |
+| `IPFS_API_URL` / `IPFS_API_USERNAME` / `IPFS_API_PASSWORD` | IPFS node HTTP API for pinning refresh snapshot files | Shared |
+| `PINATA_API_KEY` / `PINATA_API_SECRET` | Pinata credentials for secondary snapshot replication | Shared |
+| `DEVNET_RECORDS_GITHUB_TOKEN` / `TESTNET_RECORDS_GITHUB_TOKEN` | Fine-grained PAT (contents:write on this repository) for automatic record publication | Per-environment |
 
 ## Project structure
 
@@ -69,15 +72,20 @@ governance_service/
 │   └── pool.py          # Admin-guarded manual pool-refresh trigger
 ├── clients/
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
-│   └── huggingface.py   # Revision pinning, weight sizes, config, license/gating
+│   ├── huggingface.py   # Revision pinning, weight sizes, config, license/gating
+│   ├── ipfs.py          # Snapshot pinning to the foundation IPFS node
+│   ├── pinata.py        # Secondary snapshot replication
+│   └── github_records.py # Record publication via the GitHub Contents API
 ├── models/
 │   ├── candidates.py    # Candidate-sourcing data models
 │   └── pool.py          # Pool-refresh data models
 └── services/
     ├── gpu_fit.py       # Dtype-aware cheapest-fit GPU assignment
     ├── candidate_sourcing.py # One auditable sourcing pass over a release
-    └── pool_refresh.py  # Pool rules, release fallback, refresh persistence
+    ├── pool_refresh.py  # Pool rules, release fallback, refresh persistence
+    └── record_publisher.py # Record rendering, snapshot pinning, publication
 migrations/              # Numbered SQL migrations, applied in order
+records/                 # Published pool-refresh records, one file pair per refresh
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
 docs/                    # The governance methodology and public records
@@ -141,6 +149,27 @@ the refresh id when started, 409 while another refresh holds the advisory
 lock, 403 when `ADMIN_API_KEY` is unset or wrong. The refresh runs in a
 background thread; watch progress in the service log or the
 `pool_refreshes` row.
+
+## Published refresh records (G.2.5)
+
+Every completed refresh (viable pool or no-viable-pool finding) is
+published automatically as a public record under
+`records/pool-refreshes/<environment>/`: a canonical JSON document plus a
+human-readable summary (see the README there for the format). Publication
+runs inside the refresh flow itself — after persistence the service pins
+the upstream LiveBench snapshot files to IPFS (primary node plus
+best-effort Pinata replication) and commits both record files through the
+GitHub Contents API, mirroring the dynamic-unl-scoring VL distribution
+client.
+
+Publication state lives on the refresh row: `publication_status` is
+`PUBLISHED` (with `record_commit_urls`, and `snapshots_cid` when IPFS is
+configured), `FAILED` (with `publication_error`, preserving whatever CID
+or commit URLs already succeeded), or `SKIPPED` when
+`RECORDS_GITHUB_TOKEN` is not configured — the local-development
+default. Refreshes that fail before completion never attempt publication
+and keep a NULL `publication_status`. A publication failure never
+changes the refresh outcome or the standing pool.
 
 ## CI
 

@@ -30,12 +30,14 @@ from governance_service.models import (
     RefreshResult,
     ReleaseEvaluation,
     ReleaseOutcome,
+    SnapshotFile,
 )
 from governance_service.services.candidate_sourcing import (
     MappingError,
     source_candidates,
 )
 from governance_service.services.gpu_fit import cheapest_fit
+from governance_service.services.record_publisher import publish_record
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +184,7 @@ def run_refresh(
 
     considered: list[ReleaseEvaluation] = []
     viable_evaluation: ReleaseEvaluation | None = None
+    snapshots: dict[str, SnapshotFile] = {}
 
     for release in reversed(releases):
         report = source_candidates(
@@ -190,6 +193,8 @@ def run_refresh(
             registry_raw=registry_raw,
             artifact_cache=artifact_cache,
         )
+        for snap in report.snapshots:
+            snapshots.setdefault(snap.name, snap)
         evaluations = evaluate_release(
             report.candidates, blocklist, settings.incumbent_hf_repo
         )
@@ -224,6 +229,7 @@ def run_refresh(
             release_used=viable_evaluation.outcome.release,
             incumbent=incumbent,
             releases=considered,
+            snapshots=list(snapshots.values()),
         )
 
     newest_evaluations = considered[0].evaluations if considered else []
@@ -233,6 +239,7 @@ def run_refresh(
         release_used=None,
         incumbent=incumbent,
         releases=considered,
+        snapshots=list(snapshots.values()),
     )
 
 
@@ -348,13 +355,16 @@ def persist_result(connection, refresh_id: int, result: RefreshResult) -> None:
         """
         UPDATE pool_refreshes
         SET status = %s, release_used = %s, releases_considered = %s,
-            completed_at = NOW()
+            snapshots = %s, completed_at = NOW()
         WHERE id = %s
         """,
         (
             result.status,
             result.release_used,
             json.dumps([r.outcome.model_dump() for r in result.releases]),
+            json.dumps(
+                [s.model_dump(exclude={"content"}) for s in result.snapshots]
+            ),
             refresh_id,
         ),
     )
@@ -406,6 +416,15 @@ def execute_refresh(connection, refresh_id: int) -> RefreshResult | None:
         ) as client:
             result = run_refresh(client, blocklist)
         persist_result(connection, refresh_id, result)
+        try:
+            publish_record(connection, refresh_id, result)
+        except Exception:
+            # publish_record guards itself; this backstop keeps any escape
+            # from reaching the worker's handler, which would overwrite
+            # the committed refresh outcome with FAILED.
+            logger.exception(
+                "Record publication escaped its guard for refresh %d", refresh_id
+            )
         logger.info(
             "Pool refresh %d finished: status=%s, release_used=%s",
             refresh_id,

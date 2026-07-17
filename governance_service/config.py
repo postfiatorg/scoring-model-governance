@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Application
+    # -------------------------------------------------------------------------
+    environment: str = Field(
+        default="local",
+        description="Deployment environment name recorded in published "
+        "refresh records and their repository paths",
+    )
+
+    # -------------------------------------------------------------------------
     # Admin
     # -------------------------------------------------------------------------
     admin_api_key: str = Field(
@@ -103,6 +112,67 @@ class Settings(BaseSettings):
     kv_cache_dtype_bytes: int = Field(
         default=2, description="Bytes per KV-cache element (bf16)"
     )
+
+    # -------------------------------------------------------------------------
+    # IPFS
+    # -------------------------------------------------------------------------
+    ipfs_api_url: str = Field(
+        default="",
+        description="IPFS node HTTP API URL for pinning refresh snapshot "
+        "files. Pinning is skipped when empty.",
+    )
+    ipfs_api_username: str = Field(
+        default="", description="Optional IPFS API basic-auth username"
+    )
+    ipfs_api_password: str = Field(
+        default="", description="Optional IPFS API basic-auth password"
+    )
+    pinata_api_key: str = Field(
+        default="", description="Pinata API key for secondary replication"
+    )
+    pinata_api_secret: str = Field(
+        default="", description="Pinata API secret for secondary replication"
+    )
+
+    # -------------------------------------------------------------------------
+    # Published refresh records
+    # -------------------------------------------------------------------------
+    records_github_token: str = Field(
+        default="",
+        description="Fine-grained PAT with contents:write on the records "
+        "repository. Record publication is skipped when empty.",
+    )
+    records_github_repo: str = Field(
+        default="postfiatorg/scoring-model-governance",
+        description="Repository that hosts the published refresh records",
+    )
+    records_github_branch: str = Field(
+        default="main", description="Branch the record commits target"
+    )
+    records_base_path: str = Field(
+        default="records/pool-refreshes",
+        description="Repository directory the record files are committed under",
+    )
+    records_commit_author_name: str = Field(
+        default="PostFiat Governance Service",
+        description="Author and committer name on record commits",
+    )
+    records_commit_author_email: str = Field(
+        default="governance@postfiat.org",
+        description="Author and committer email on record commits",
+    )
+
+    @property
+    def ipfs_enabled(self) -> bool:
+        return bool(self.ipfs_api_url)
+
+    @property
+    def pinata_enabled(self) -> bool:
+        return bool(self.pinata_api_key and self.pinata_api_secret)
+
+    @property
+    def records_enabled(self) -> bool:
+        return bool(self.records_github_token)
 
     model_config = SettingsConfigDict(
         env_file=".env",

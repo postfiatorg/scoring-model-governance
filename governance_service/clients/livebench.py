@@ -221,4 +221,5 @@ def snapshot(name: str, raw: bytes) -> SnapshotFile:
         name=name,
         sha256=hashlib.sha256(raw).hexdigest(),
         size_bytes=len(raw),
+        content=raw,
     )

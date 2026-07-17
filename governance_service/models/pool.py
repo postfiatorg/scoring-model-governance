@@ -2,7 +2,11 @@
 
 from pydantic import BaseModel
 
-from governance_service.models.candidates import CandidateDescriptor, Precision
+from governance_service.models.candidates import (
+    CandidateDescriptor,
+    Precision,
+    SnapshotFile,
+)
 
 
 class BlocklistEntry(BaseModel):
@@ -77,3 +81,4 @@ class RefreshResult(BaseModel):
     release_used: str | None
     incumbent: IncumbentMember
     releases: list[ReleaseEvaluation]
+    snapshots: list[SnapshotFile]
