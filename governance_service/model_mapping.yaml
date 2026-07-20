@@ -37,6 +37,19 @@ kimi-k2.7-code:
     rule keeps it pool-ineligible until an FP8 or full-precision release
     exists.
 
+gemma-4-31b-it:
+  hf_repo: google/gemma-4-31B-it
+  family: gemma
+  note: No vendor FP8 release (only QAT q4_0 GGUF quantizations exist),
+    so the preference order selects the full-precision weights.
+
+qwen3-32b-thinking:
+  hf_repo: Qwen/Qwen3-32B-FP8
+  family: qwen
+  note: Hybrid Qwen3 model; one repository serves thinking and
+    non-thinking modes, so thinking can be disabled as production serving
+    requires.
+
 # Known skips: models whose artifact is known to be unresolvable, per the
 # methodology's skip rule. Recording them here keeps the freshness check
 # meaningful — it fails only on models in neither list.
@@ -44,3 +57,24 @@ kimi-k2.6-thinking:
   skip_reason: No public weight repository identified for the scored
     leaderboard variant; the closest repo (moonshotai/Kimi-K2.6) cannot be
     confirmed as the thinking variant.
+
+kimi-k2.5-thinking:
+  skip_reason: No public weight repository identified for the scored
+    leaderboard variant; the closest repo (moonshotai/Kimi-K2.5) cannot be
+    confirmed as the thinking variant.
+
+qwen3.6-flash:
+  skip_reason: No public weight repository identified; the model is
+    served only through vendor APIs.
+
+gpt-oss-120b:
+  skip_reason: Vendor ships MXFP4-quantized weights only, which the
+    variant rule excludes and the artifact resolver cannot parse — unlike
+    the INT4 kimi entry, this cannot be carried as a variant-ineligible
+    mapping entry without failing every refresh.
+
+devstral-2512:
+  skip_reason: Two Devstral releases share the 2512 date
+    (mistralai/Devstral-2-123B-Instruct-2512 and
+    mistralai/Devstral-Small-2-24B-Instruct-2512); the scored leaderboard
+    variant cannot be confirmed.
