@@ -1,8 +1,9 @@
 """Pool refresh: the methodology's candidate-pool rules over a release walk.
 
 One refresh turns leaderboard standings into a persisted candidate pool.
-Challengers must survive four rules — blocklist, artifact variant,
-single-GPU fit, and one-per-family deduplication — and a release is viable
+Challengers must survive five rules — blocklist, artifact variant,
+thinking-mode eligibility, single-GPU fit, and one-per-family
+deduplication — and a release is viable
 only when at least two challengers survive alongside the incumbent, which
 is a pool member by right and exempt from every rule. The refresh walks
 back one release at a time until it finds a viable pool, recording each
@@ -31,6 +32,7 @@ from governance_service.models import (
     ReleaseEvaluation,
     ReleaseOutcome,
     SnapshotFile,
+    ThinkingMode,
 )
 from governance_service.services.candidate_sourcing import (
     MappingError,
@@ -49,12 +51,15 @@ STATUS_NO_VIABLE_POOL = "NO_VIABLE_POOL"
 STATUS_FAILED = "FAILED"
 
 RULE_BLOCKLISTED = "BLOCKLISTED"
+RULE_THINKING_NOT_DISABLEABLE = "THINKING_NOT_DISABLEABLE"
+RULE_THINKING_UNVERIFIED = "THINKING_UNVERIFIED"
 RULE_VARIANT_INELIGIBLE = "VARIANT_INELIGIBLE"
 RULE_NO_SINGLE_GPU_FIT = "NO_SINGLE_GPU_FIT"
 RULE_FAMILY_DEDUPLICATED = "FAMILY_DEDUPLICATED"
 RULE_IS_INCUMBENT = "IS_INCUMBENT"
 
 POOL_ELIGIBLE_PRECISIONS = {Precision.FP8, Precision.BF16, Precision.FP16}
+POOL_ELIGIBLE_THINKING = {ThinkingMode.NONE, ThinkingMode.HYBRID}
 MIN_CHALLENGERS = 2
 
 
@@ -114,11 +119,17 @@ def evaluate_release(
             )
             continue
 
+        # Checks follow the methodology's rule numbering so a dual-failure
+        # candidate's recorded exclusion matches the published order.
         exclusion = None
         if (candidate.hf_repo, candidate.revision) in blocked:
             exclusion = RULE_BLOCKLISTED
         elif candidate.precision not in POOL_ELIGIBLE_PRECISIONS:
             exclusion = RULE_VARIANT_INELIGIBLE
+        elif candidate.thinking == ThinkingMode.ALWAYS:
+            exclusion = RULE_THINKING_NOT_DISABLEABLE
+        elif candidate.thinking not in POOL_ELIGIBLE_THINKING:
+            exclusion = RULE_THINKING_UNVERIFIED
         elif candidate.assigned_gpu is None:
             exclusion = RULE_NO_SINGLE_GPU_FIT
         elif candidate.family in families_in_pool:
@@ -284,11 +295,11 @@ def _persist_candidate(
         """
         INSERT INTO pool_refresh_candidates (
             refresh_id, release, livebench_key, display_name, organization,
-            family, global_average, category_averages, hf_repo, revision,
-            precision, weight_bytes, license, gated, assigned_gpu,
+            family, thinking, global_average, category_averages, hf_repo,
+            revision, precision, weight_bytes, license, gated, assigned_gpu,
             is_incumbent, in_pool, exclusion_rule
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                  %s, %s, %s)
+                  %s, %s, %s, %s)
         """,
         (
             refresh_id,
@@ -297,6 +308,7 @@ def _persist_candidate(
             descriptor.display_name,
             descriptor.organization,
             descriptor.family,
+            descriptor.thinking.value,
             descriptor.global_average,
             json.dumps(descriptor.category_averages),
             descriptor.hf_repo,

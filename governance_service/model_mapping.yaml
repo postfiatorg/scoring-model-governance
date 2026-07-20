@@ -9,43 +9,58 @@
 # hf_repo follows the methodology's artifact preference order: the vendor's
 # official FP8 release when one exists as a publicly pinnable repository,
 # otherwise the vendor's full-precision weights. family feeds the one-per-
-# family deduplication applied by the pool rules.
+# family deduplication applied by the pool rules. thinking is the curated
+# thinking-mode class (none, hybrid, always, or unknown), written from the
+# model's public chat template and validated against it by the freshness
+# check; only none and hybrid are pool-eligible, because production serves
+# the scoring model with thinking disabled.
 
 qwen3.6-27b:
   hf_repo: Qwen/Qwen3.6-27B-FP8
   family: qwen
+  thinking: hybrid
   note: Incumbent artifact; matches the production execution manifest.
 
 glm-5.2:
   hf_repo: zai-org/GLM-5.2-FP8
   family: glm
+  thinking: hybrid
 
 deepseek-v4-pro:
   hf_repo: deepseek-ai/DeepSeek-V4-Pro
   family: deepseek
-  note: Vendor ships FP8 natively in the base repository.
+  thinking: unknown
+  note: Vendor ships FP8 natively in the base repository. The repository
+    carries no chat template, so the thinking class cannot be established
+    from public evidence; unknown fails closed.
 
 deepseek-v4-flash:
   hf_repo: deepseek-ai/DeepSeek-V4-Flash
   family: deepseek
-  note: Vendor ships FP8 natively in the base repository.
+  thinking: unknown
+  note: Vendor ships FP8 natively in the base repository. The repository
+    carries no chat template, so the thinking class cannot be established
+    from public evidence; unknown fails closed.
 
 kimi-k2.7-code:
   hf_repo: moonshotai/Kimi-K2.7-Code
   family: kimi
-  note: Vendor's only public artifact is INT4 pack-quantized; the variant
-    rule keeps it pool-ineligible until an FP8 or full-precision release
-    exists.
+  thinking: always
+  note: The chat template opens every assistant turn inside a think block
+    with no toggle, and the only public artifact is INT4 pack-quantized;
+    ineligible on both counts.
 
 gemma-4-31b-it:
   hf_repo: google/gemma-4-31B-it
   family: gemma
+  thinking: hybrid
   note: No vendor FP8 release (only QAT q4_0 GGUF quantizations exist),
     so the preference order selects the full-precision weights.
 
 qwen3-32b-thinking:
   hf_repo: Qwen/Qwen3-32B-FP8
   family: qwen
+  thinking: hybrid
   note: Hybrid Qwen3 model; one repository serves thinking and
     non-thinking modes, so thinking can be disabled as production serving
     requires.

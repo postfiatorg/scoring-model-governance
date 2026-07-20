@@ -9,7 +9,7 @@ import pytest
 
 from governance_service import freshness
 from governance_service.config import MODEL_MAPPING_PATH
-from governance_service.models import SourcingReport
+from governance_service.models import SourcingReport, ThinkingMode
 from governance_service.services.candidate_sourcing import (
     MappingError,
     load_mapping,
@@ -37,9 +37,11 @@ TEST_MAPPING = """\
 qwen3.6-27b:
   hf_repo: Qwen/Qwen3.6-27B-FP8
   family: qwen
+  thinking: hybrid
 deepseek-v4-pro:
   hf_repo: deepseek-ai/DeepSeek-V4-Pro
   family: deepseek
+  thinking: unknown
 kimi-k2.6-thinking:
   skip_reason: No public weight repository identified.
 """
@@ -78,6 +80,7 @@ def test_full_sourcing_pass(mock_client, test_mapping_path):
     assert qwen.license == "apache-2.0"
     assert qwen.gated is False
     assert qwen.assigned_gpu == "H100"
+    assert qwen.thinking is ThinkingMode.HYBRID
     assert round(qwen.global_average, 2) == 64.03
 
     deepseek = by_key["deepseek-v4-pro"]
@@ -134,7 +137,10 @@ def test_malformed_mapping_rejected(tmp_path):
     with pytest.raises(MappingError, match="missing fields"):
         load_mapping(path)
 
-    path.write_text("qwen3.6-27b:\n  hf_repo: x\n  family: y\n  extra: z\n", encoding="utf-8")
+    path.write_text(
+        "qwen3.6-27b:\n  hf_repo: x\n  family: y\n  thinking: hybrid\n  extra: z\n",
+        encoding="utf-8",
+    )
     with pytest.raises(MappingError, match="unknown fields"):
         load_mapping(path)
 
@@ -148,9 +154,22 @@ def test_malformed_mapping_rejected(tmp_path):
     with pytest.raises(MappingError, match="only a skip_reason"):
         load_mapping(path)
 
-    path.write_text("x:\n  hf_repo: [not, a, string]\n  family: y\n", encoding="utf-8")
+    path.write_text(
+        "x:\n  hf_repo: [not, a, string]\n  family: y\n  thinking: hybrid\n",
+        encoding="utf-8",
+    )
     with pytest.raises(MappingError, match="is invalid"):
         load_mapping(path)
+
+
+def _clean_report():
+    return SourcingReport(
+        release=RELEASE,
+        candidates=[],
+        unmapped=[],
+        skipped={"kimi-k2.6-thinking": "No public weight repository identified."},
+        snapshots=[],
+    )
 
 
 def test_freshness_fails_on_unmapped_models(monkeypatch, mock_client):
@@ -162,16 +181,25 @@ def test_freshness_fails_on_unmapped_models(monkeypatch, mock_client):
         snapshots=[],
     )
     monkeypatch.setattr(freshness, "source_candidates", lambda client: report)
+    monkeypatch.setattr(freshness, "check_thinking_classes", lambda client: [])
     assert freshness.run(mock_client) == 1
 
 
 def test_freshness_passes_with_known_skips(monkeypatch, mock_client):
-    report = SourcingReport(
-        release=RELEASE,
-        candidates=[],
-        unmapped=[],
-        skipped={"kimi-k2.6-thinking": "No public weight repository identified."},
-        snapshots=[],
+    monkeypatch.setattr(
+        freshness, "source_candidates", lambda client: _clean_report()
     )
-    monkeypatch.setattr(freshness, "source_candidates", lambda client: report)
+    monkeypatch.setattr(freshness, "check_thinking_classes", lambda client: [])
     assert freshness.run(mock_client) == 0
+
+
+def test_freshness_fails_on_thinking_mismatch(monkeypatch, mock_client):
+    monkeypatch.setattr(
+        freshness, "source_candidates", lambda client: _clean_report()
+    )
+    monkeypatch.setattr(
+        freshness,
+        "check_thinking_classes",
+        lambda client: ["some-model: declared 'hybrid' but no toggle"],
+    )
+    assert freshness.run(mock_client) == 1

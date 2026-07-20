@@ -102,7 +102,9 @@ H200) using exact weight bytes plus a config-derived KV-cache estimate under
 the production SGLang memory fraction. Models without a mapping entry are
 reported as unmapped, never guessed — add a mapping line to make one eligible,
 or a `skip_reason` entry to record a model whose artifact is known to be
-unresolvable.
+unresolvable. Every entry also declares its curated thinking-mode class
+(`thinking: none | hybrid | always | unknown`), written from the model's
+public chat template and validated against it by the freshness check.
 
 Run one live pass locally:
 
@@ -112,15 +114,18 @@ python -m governance_service.freshness
 
 The scheduled Mapping Freshness workflow (`.github/workflows/mapping-freshness.yml`)
 runs the same check weekly and fails when an open-weight leaderboard model is
-unmapped or the upstream data files no longer parse.
+unmapped, the upstream data files no longer parse, or a curated
+thinking-mode class contradicts the model's public chat template.
 
 ## Pool refresh (G.2.4)
 
 A pool refresh turns one sourcing pass into an actual candidate pool under
 the methodology's rules: blocklisted revisions are excluded (their slot
 passing to the next eligible candidate), only vendor FP8 or full-precision
-artifacts are eligible, every challenger must fit a single GPU, and one
-model per family survives — with the incumbent a pool member by right,
+artifacts are eligible, only models whose thinking mode can be disabled
+are eligible (production serves with thinking off), every challenger must
+fit a single GPU, and one model per family survives — with the incumbent
+a pool member by right,
 exempt from every rule, and its family's challenger slot open to a
 better-ranked successor. A release is viable only when at least two
 challengers survive; the refresh walks back one release at a time until

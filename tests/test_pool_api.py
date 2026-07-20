@@ -61,6 +61,7 @@ def challenger(
             display_name=key.title(),
             organization=family.title(),
             family=family,
+            thinking="hybrid",
             global_average=average,
             category_averages={"reasoning": average},
             hf_repo=f"{family}/{key}",
@@ -209,6 +210,7 @@ class TestRefreshes:
         incumbent = by_key["qwen3.6-27b"]
         assert incumbent["is_incumbent"] is True
         assert incumbent["revision"] == "incumbent-rev"
+        assert by_key["only-one"]["thinking"] == "hybrid"
 
     def test_detail_exposes_exclusion_rules(self, db, client):
         refresh_id = seed_refresh(db, viable_result())

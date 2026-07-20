@@ -73,6 +73,7 @@ def challenger(key: str, family: str, average: float) -> CandidateEvaluation:
             display_name=key.title(),
             organization=family.title(),
             family=family,
+            thinking="hybrid",
             global_average=average,
             category_averages={"reasoning": average},
             hf_repo=f"{family}/{key}",

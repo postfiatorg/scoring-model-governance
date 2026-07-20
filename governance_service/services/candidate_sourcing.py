@@ -21,7 +21,7 @@ from governance_service.models import (
 )
 from governance_service.services.gpu_fit import cheapest_fit
 
-MAPPING_REQUIRED_FIELDS = {"hf_repo", "family"}
+MAPPING_REQUIRED_FIELDS = {"hf_repo", "family", "thinking"}
 MAPPING_ALLOWED_FIELDS = MAPPING_REQUIRED_FIELDS | {"note"}
 SKIP_FIELD = "skip_reason"
 
@@ -124,6 +124,7 @@ def source_candidates(
                 display_name=standing.display_name,
                 organization=standing.organization,
                 family=entry.family,
+                thinking=entry.thinking,
                 global_average=standing.global_average,
                 category_averages=standing.category_averages,
                 hf_repo=artifact.repo_id,

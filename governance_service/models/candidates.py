@@ -19,6 +19,22 @@ class Precision(str, Enum):
     INT4 = "int4"
 
 
+class ThinkingMode(str, Enum):
+    """Curated thinking-mode class of a mapped model.
+
+    Production serves the scoring model with thinking disabled, so only
+    models that can serve without thinking are pool-eligible: NONE and
+    HYBRID qualify; ALWAYS cannot disable thinking, and UNKNOWN records
+    that the class could not be established with evidence — both are
+    excluded by the pool rules (fail closed, never guessed).
+    """
+
+    NONE = "none"
+    HYBRID = "hybrid"
+    ALWAYS = "always"
+    UNKNOWN = "unknown"
+
+
 class RegistryEntry(BaseModel):
     """One model entry from the LiveBench site registry (modelLinks.js)."""
 
@@ -72,6 +88,7 @@ class MappingEntry(BaseModel):
 
     hf_repo: str
     family: str
+    thinking: ThinkingMode
     note: str | None = None
 
 
@@ -96,6 +113,7 @@ class CandidateDescriptor(BaseModel):
     display_name: str
     organization: str
     family: str
+    thinking: ThinkingMode
     global_average: float
     category_averages: dict[str, float]
     hf_repo: str

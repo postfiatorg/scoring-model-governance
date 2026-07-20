@@ -27,6 +27,10 @@ class HuggingFaceError(RuntimeError):
     """Raised when a model cannot be resolved to a usable artifact."""
 
 
+class HuggingFaceNotFoundError(HuggingFaceError):
+    """Raised on a definitive 404 — the requested file does not exist."""
+
+
 def _get(client: httpx.Client, url: str) -> bytes:
     """GET with exponential backoff; 4xx responses fail without retry."""
     headers = {}
@@ -45,7 +49,12 @@ def _get(client: httpx.Client, url: str) -> bytes:
                 < status.HTTP_500_INTERNAL_SERVER_ERROR
                 and response.status_code != status.HTTP_429_TOO_MANY_REQUESTS
             ):
-                raise HuggingFaceError(
+                error_class = (
+                    HuggingFaceNotFoundError
+                    if response.status_code == status.HTTP_404_NOT_FOUND
+                    else HuggingFaceError
+                )
+                raise error_class(
                     f"HuggingFace returned {response.status_code} for {url}"
                 )
             response.raise_for_status()
@@ -141,6 +150,42 @@ def _parse_geometry(repo_id: str, source: dict) -> ModelGeometry:
         num_key_value_heads=kv_heads,
         head_dim=head_dim,
     )
+
+
+def fetch_chat_template(client: httpx.Client, repo_id: str) -> str | None:
+    """The model's public chat template, or None when the repo ships none.
+
+    Checks the `chat_template` field of tokenizer_config.json first, then
+    the standalone chat_template.jinja file. Only genuinely missing
+    templates return None; transport failures raise so the caller never
+    mistakes an outage for an absent template.
+    """
+    for path, extract in (
+        ("tokenizer_config.json", lambda raw: json.loads(raw).get("chat_template")),
+        ("chat_template.jinja", lambda raw: raw.decode("utf-8")),
+    ):
+        # Classification validates against the branch head; pool identity
+        # stays bound to pinned revisions elsewhere.
+        url = f"{settings.hf_api_base_url}/{repo_id}/resolve/main/{path}"
+        try:
+            template = extract(_get(client, url))
+        except HuggingFaceNotFoundError:
+            continue
+        except ValueError as exc:
+            raise HuggingFaceError(
+                f"{path} for {repo_id} could not be parsed: {exc}"
+            ) from exc
+        if template is None:
+            continue
+        if isinstance(template, list):
+            # Rare multi-template form: one named template per entry.
+            template = " ".join(
+                item.get("template", "") if isinstance(item, dict) else str(item)
+                for item in template
+            ) or None
+        if template is not None:
+            return template
+    return None
 
 
 def fetch_artifact(

@@ -57,6 +57,7 @@ def descriptor(
         display_name=key.title(),
         organization=family.title(),
         family=family,
+        thinking="hybrid",
         global_average=global_average,
         category_averages={"reasoning": global_average},
         hf_repo=hf_repo or f"{family}/{key}",

@@ -27,12 +27,14 @@ def descriptor(
     assigned_gpu: str | None = "H100",
     hf_repo: str | None = None,
     revision: str | None = None,
+    thinking: str = "hybrid",
 ) -> CandidateDescriptor:
     return CandidateDescriptor(
         livebench_key=key,
         display_name=key.title(),
         organization=family.title(),
         family=family,
+        thinking=thinking,
         global_average=global_average,
         category_averages={"reasoning": global_average},
         hf_repo=hf_repo or f"{family}/{key}",

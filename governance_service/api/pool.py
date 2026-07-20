@@ -183,9 +183,9 @@ def get_refresh(refresh_id: int):
         cursor.execute(
             """
             SELECT release, livebench_key, display_name, organization, family,
-                   global_average, category_averages, hf_repo, revision,
-                   precision, weight_bytes, license, gated, assigned_gpu,
-                   is_incumbent, in_pool, exclusion_rule
+                   thinking, global_average, category_averages, hf_repo,
+                   revision, precision, weight_bytes, license, gated,
+                   assigned_gpu, is_incumbent, in_pool, exclusion_rule
             FROM pool_refresh_candidates
             WHERE refresh_id = %s
             ORDER BY release DESC NULLS FIRST, is_incumbent DESC,
@@ -210,18 +210,19 @@ def get_refresh(refresh_id: int):
             "display_name": r[2],
             "organization": r[3],
             "family": r[4],
-            "global_average": r[5],
-            "category_averages": r[6],
-            "hf_repo": r[7],
-            "revision": r[8],
-            "precision": r[9],
-            "weight_bytes": r[10],
-            "license": r[11],
-            "gated": r[12],
-            "assigned_gpu": r[13],
-            "is_incumbent": r[14],
-            "in_pool": r[15],
-            "exclusion_rule": r[16],
+            "thinking": r[5],
+            "global_average": r[6],
+            "category_averages": r[7],
+            "hf_repo": r[8],
+            "revision": r[9],
+            "precision": r[10],
+            "weight_bytes": r[11],
+            "license": r[12],
+            "gated": r[13],
+            "assigned_gpu": r[14],
+            "is_incumbent": r[15],
+            "in_pool": r[16],
+            "exclusion_rule": r[17],
         }
         for r in candidate_rows
     ]

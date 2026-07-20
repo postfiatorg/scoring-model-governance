@@ -9,6 +9,7 @@ from governance_service.models.candidates import (
     RegistryEntry,
     SnapshotFile,
     SourcingReport,
+    ThinkingMode,
 )
 from governance_service.models.pool import (
     BlocklistEntry,
@@ -36,4 +37,5 @@ __all__ = [
     "ReleaseOutcome",
     "SnapshotFile",
     "SourcingReport",
+    "ThinkingMode",
 ]
