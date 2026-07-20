@@ -444,16 +444,12 @@ def execute_refresh(connection, refresh_id: int) -> RefreshResult | None:
         return None
 
 
-def get_current_pool(connection) -> list[dict]:
-    """The pool as of the latest completed refresh; empty before one exists.
-
-    A NO_VIABLE_POOL or FAILED refresh never becomes current — the pool
-    stands as the last COMPLETED refresh left it.
-    """
+def latest_completed_refresh(connection) -> tuple | None:
+    """(id, release_used, completed_at) of the newest COMPLETED refresh."""
     cursor = connection.cursor()
     cursor.execute(
         """
-        SELECT id FROM pool_refreshes
+        SELECT id, release_used, completed_at FROM pool_refreshes
         WHERE status = %s
         ORDER BY id DESC
         LIMIT 1
@@ -461,12 +457,17 @@ def get_current_pool(connection) -> list[dict]:
         (STATUS_COMPLETED,),
     )
     row = cursor.fetchone()
-    if row is None:
-        cursor.close()
-        return []
+    cursor.close()
+    return row
 
-    # in_pool audit rows exist for every considered release; the pool is
-    # only what survived on the release the refresh actually used.
+
+def get_pool_members(connection, refresh_id: int) -> list[dict]:
+    """One completed refresh's pool members, incumbent first.
+
+    in_pool audit rows exist for every considered release; the pool is
+    only what survived on the release the refresh actually used.
+    """
+    cursor = connection.cursor()
     cursor.execute(
         """
         SELECT c.livebench_key, c.display_name, c.family, c.hf_repo,
@@ -474,9 +475,9 @@ def get_current_pool(connection) -> list[dict]:
         FROM pool_refresh_candidates c
         JOIN pool_refreshes r ON r.id = c.refresh_id
         WHERE c.refresh_id = %s AND c.in_pool AND c.release = r.release_used
-        ORDER BY c.is_incumbent DESC, c.global_average DESC NULLS LAST
+        ORDER BY c.is_incumbent DESC, c.global_average DESC NULLS LAST, c.id
         """,
-        (row[0],),
+        (refresh_id,),
     )
     members = [
         {
@@ -493,3 +494,15 @@ def get_current_pool(connection) -> list[dict]:
     ]
     cursor.close()
     return members
+
+
+def get_current_pool(connection) -> list[dict]:
+    """The pool as of the latest completed refresh; empty before one exists.
+
+    A NO_VIABLE_POOL or FAILED refresh never becomes current — the pool
+    stands as the last COMPLETED refresh left it.
+    """
+    row = latest_completed_refresh(connection)
+    if row is None:
+        return []
+    return get_pool_members(connection, row[0])

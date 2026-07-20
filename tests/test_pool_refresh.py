@@ -11,7 +11,6 @@ import pytest
 
 from governance_service.api import pool as pool_api
 from governance_service.clients import huggingface, livebench
-from governance_service.database import get_db, init_db_if_needed
 from governance_service.models import (
     BlocklistEntry,
     CandidateDescriptor,
@@ -79,27 +78,6 @@ def report(release: str, candidates: list[CandidateDescriptor]) -> SourcingRepor
         skipped={},
         snapshots=[],
     )
-
-
-@pytest.fixture()
-def db():
-    init_db_if_needed()
-    connection = get_db()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM pool_refresh_candidates")
-    cursor.execute("DELETE FROM pool_refreshes")
-    cursor.execute("DELETE FROM blocklist")
-    connection.commit()
-
-    yield connection
-
-    connection.rollback()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM pool_refresh_candidates")
-    cursor.execute("DELETE FROM pool_refreshes")
-    cursor.execute("DELETE FROM blocklist")
-    connection.commit()
-    connection.close()
 
 
 @pytest.fixture()

@@ -6,7 +6,6 @@ import pytest
 
 from governance_service.clients.github_records import GitHubRecordsError
 from governance_service.config import settings
-from governance_service.database import get_db, init_db_if_needed
 from governance_service.models import (
     CandidateDescriptor,
     CandidateEvaluation,
@@ -132,25 +131,6 @@ def no_viable_result() -> RefreshResult:
         ],
         snapshots=SNAPSHOTS,
     )
-
-
-@pytest.fixture()
-def db():
-    init_db_if_needed()
-    connection = get_db()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM pool_refresh_candidates")
-    cursor.execute("DELETE FROM pool_refreshes")
-    connection.commit()
-
-    yield connection
-
-    connection.rollback()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM pool_refresh_candidates")
-    cursor.execute("DELETE FROM pool_refreshes")
-    connection.commit()
-    connection.close()
 
 
 def publication_row(connection, refresh_id: int) -> tuple:

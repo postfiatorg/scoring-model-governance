@@ -69,7 +69,7 @@ governance_service/
 ├── api/
 │   ├── _helpers.py      # Admin auth and refresh-lock preconditions
 │   ├── health.py        # /health liveness endpoint
-│   └── pool.py          # Admin-guarded manual pool-refresh trigger
+│   └── pool.py          # Public pool/refresh/blocklist/health reads + refresh trigger
 ├── clients/
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
 │   ├── huggingface.py   # Revision pinning, weight sizes, config, license/gating
@@ -170,6 +170,19 @@ or commit URLs already succeeded), or `SKIPPED` when
 default. Refreshes that fail before completion never attempt publication
 and keep a NULL `publication_status`. A publication failure never
 changes the refresh outcome or the standing pool.
+
+## Pool API (G.2.6)
+
+The service's public read surface — the endpoints the explorer consumes,
+mirroring the dynamic-unl-scoring public API conventions:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/governance/pool` | Current pool from the latest completed refresh (404 before one exists) |
+| `GET /api/governance/refreshes` | Refresh history, newest first, paginated with `limit`/`offset` |
+| `GET /api/governance/refreshes/{id}` | One refresh's full audit: the release walk and every candidate's rule outcome |
+| `GET /api/governance/blocklist` | The standing blocklist as consumed by refreshes |
+| `GET /api/governance/health` | Pipeline-health signals (latest refresh outcome and age, record-publication state), distinct from the bare `/health` liveness probe |
 
 ## CI
 
