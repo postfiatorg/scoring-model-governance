@@ -1,0 +1,44 @@
+name: Vendor Freshness
+
+on:
+  push:
+    branches: [main, devnet, testnet]
+  pull_request:
+    branches: [main, devnet, testnet]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Upstream branch to compare against"
+        required: false
+        default: "main"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check vendored code freshness
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            branch="${{ github.base_ref }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            branch="${{ github.event.inputs.branch }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            branch="main"
+          else
+            branch="${{ github.ref_name }}"
+          fi
+          if [ "$branch" = "main" ]; then
+            mode="warning"
+          else
+            mode="blocking"
+          fi
+          echo "Comparing against upstream branch '$branch' in $mode mode"
+          PYTHONPATH=. python scripts/check_vendor_freshness.py --branch "$branch" --mode "$mode"

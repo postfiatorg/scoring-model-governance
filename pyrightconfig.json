@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    "governance_service/scoring/_vendor_source"
+  ],
+  "exclude": [
+    "governance_service/scoring/_vendor_source",
+    ".venv"
+  ]
+}

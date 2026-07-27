@@ -102,6 +102,26 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Exam corpus
+    # -------------------------------------------------------------------------
+    scoring_api_base_url: str = Field(
+        default="https://scoring-devnet.postfiat.org",
+        description="Base URL of the environment's own scoring service, used "
+        "to enumerate rounds and fetch frozen input packages",
+    )
+    ipfs_gateway_url: str = Field(
+        default="https://ipfs-testnet.postfiat.org/ipfs",
+        description="Public IPFS gateway used as the fallback fetch path for "
+        "input package files; one shared gateway serves every environment",
+    )
+    corpus_history_window: int = Field(
+        default=12,
+        ge=1,
+        description="How many recent scoring rounds the exam corpus includes; "
+        "the corpus takes fewer when the environment's history is shorter",
+    )
+
+    # -------------------------------------------------------------------------
     # GPU fit
     # -------------------------------------------------------------------------
     gpu_mem_fraction: float = Field(

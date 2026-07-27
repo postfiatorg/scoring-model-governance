@@ -66,6 +66,8 @@ governance_service/
 ├── freshness.py         # Mapping/schema freshness check (python -m governance_service.freshness)
 ├── model_mapping.yaml   # Curated LiveBench key → HuggingFace artifact mapping
 ├── model_blocklist.yaml # Standing blocklist of revisions that failed past rounds
+├── request_template.json # Verbatim production model request (testnet round 15),
+│                        # the structural template for constructed edge cases
 ├── api/
 │   ├── _helpers.py      # Admin auth and refresh-lock preconditions
 │   ├── health.py        # /health liveness endpoint
@@ -73,19 +75,26 @@ governance_service/
 ├── clients/
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
 │   ├── huggingface.py   # Revision pinning, weight sizes, config, license/gating
+│   ├── scoring_api.py   # Scoring-service rounds/input-package fetch + IPFS gateway fallback
 │   ├── ipfs.py          # Snapshot pinning to the foundation IPFS node
 │   ├── pinata.py        # Secondary snapshot replication
 │   └── github_records.py # Record publication via the GitHub Contents API
 ├── models/
 │   ├── candidates.py    # Candidate-sourcing data models
 │   └── pool.py          # Pool-refresh data models
+├── scoring/
+│   ├── _vendor_source/  # Byte-identical dynamic-unl-scoring copies, pinned by content hash
+│   └── hashing.py       # Adapted canonical-hash rules (the vendored module needs xrpl)
 └── services/
     ├── gpu_fit.py       # Dtype-aware cheapest-fit GPU assignment
     ├── candidate_sourcing.py # One auditable sourcing pass over a release
     ├── pool_refresh.py  # Pool rules, release fallback, refresh persistence
-    └── record_publisher.py # Record rendering, snapshot pinning, publication
+    ├── record_publisher.py # Record rendering, snapshot pinning, publication
+    ├── corpus.py        # Exam corpus assembly: verified history + manifest
+    └── edge_cases.py    # Deterministic constructed edge-case catalogue
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published pool-refresh records, one file pair per refresh
+scripts/                 # check_vendor_freshness.py: vendored-code drift check
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
 docs/                    # The governance methodology and public records
@@ -189,6 +198,35 @@ mirroring the dynamic-unl-scoring public API conventions:
 | `GET /api/governance/blocklist` | The standing blocklist as consumed by refreshes |
 | `GET /api/governance/health` | Pipeline-health signals (latest refresh outcome and age, record-publication state), distinct from the bare `/health` liveness probe |
 
+## Exam corpus (G.3.1)
+
+The corpus-assembly layer builds the frozen "question set" governance
+rounds examine scoring-model candidates against. One assembly selects the
+newest completed scoring rounds under `CORPUS_HISTORY_WINDOW` (default 12,
+fewer when the environment's history is shorter), fetches each round's
+frozen input package — scoring service HTTPS first, public IPFS gateway
+second — and verifies every file against the package's recorded canonical
+hashes before it can enter the corpus. Historical packages are referenced
+by their existing CIDs and hashes, never re-pinned or copied.
+
+Hash rules are reused, not reimplemented: `governance_service/scoring/`
+vendors the canonical-hash source from dynamic-unl-scoring the same way
+the validator sidecar vendors foundation code — a byte-identical copy
+under `_vendor_source/` pinned by content hash, a runnable adaptation in
+`hashing.py` (the vendored module needs xrpl, which this service does not
+depend on), and the Vendor Freshness workflow that detects upstream drift
+(warning on `main`, blocking on environment branches).
+
+The constructed side is a versioned six-case edge-case catalogue
+(`services/edge_cases.py`): byte-stable builders that emit synthetic
+rounds in the exact production request format — substituting only the
+validator array and selector-context values into the verbatim template —
+covering the scoring prompt's penalty and judgment rules, the selector's
+cutoff/overflow/churn boundaries, a fully degraded set, adversarial
+instruction-like evidence, and a large-set format stress. The corpus
+manifest binds both sides: historical items by CID and hash, constructed
+items by canonical content hash, and the policy actually applied.
+
 ## CI
 
-GitHub Actions runs the test suite against a PostgreSQL 16 service container and builds the Docker image on every pull request and push to `main`. A separate scheduled workflow checks mapping freshness against the live LiveBench data weekly.
+GitHub Actions runs the test suite against a PostgreSQL 16 service container and builds the Docker image on every pull request and push to `main`. A separate scheduled workflow checks mapping freshness against the live LiveBench data weekly, and the Vendor Freshness workflow compares the vendored dynamic-unl-scoring copies against upstream on pushes, pull requests, and a weekly schedule.
