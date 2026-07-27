@@ -81,7 +81,8 @@ governance_service/
 │   └── github_records.py # Record publication via the GitHub Contents API
 ├── models/
 │   ├── candidates.py    # Candidate-sourcing data models
-│   └── pool.py          # Pool-refresh data models
+│   ├── pool.py          # Pool-refresh data models
+│   └── runtime_profile.py # Candidate runtime profile, the adaptation rule's input
 ├── scoring/
 │   ├── _vendor_source/  # Byte-identical dynamic-unl-scoring copies, pinned by content hash
 │   └── hashing.py       # Adapted canonical-hash rules (the vendored module needs xrpl)
@@ -91,7 +92,8 @@ governance_service/
     ├── pool_refresh.py  # Pool rules, release fallback, refresh persistence
     ├── record_publisher.py # Record rendering, snapshot pinning, publication
     ├── corpus.py        # Exam corpus assembly: verified history + manifest
-    └── edge_cases.py    # Deterministic constructed edge-case catalogue
+    ├── edge_cases.py    # Deterministic constructed edge-case catalogue
+    └── request_adaptation.py # Per-candidate request adaptation rule
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published pool-refresh records, one file pair per refresh
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
@@ -226,6 +228,21 @@ cutoff/overflow/churn boundaries, a fully degraded set, adversarial
 instruction-like evidence, and a large-set format stress. The corpus
 manifest binds both sides: historical items by CID and hash, constructed
 items by canonical content hash, and the policy actually applied.
+
+## Request adaptation (G.3.2)
+
+Corpus requests embed the serving model's identity, so no other candidate
+can replay them verbatim. `services/request_adaptation.py` is the frozen
+derivation that re-addresses one corpus request to any candidate: it
+rewrites exactly the profile-derived fields — the `model` identifier and
+the `extra_body` chat-template settings — from the candidate's minimal
+runtime profile (`models/runtime_profile.py`), leaving every other byte
+untouched. The rule is a pure function; its tests prove the identity
+property (adapting a request to its own embedded profile reproduces it
+byte-for-byte) and the exclusivity property (adapting to another
+candidate changes nothing but the declared fields), so any verifier can
+reconstruct identical per-candidate requests from the frozen corpus and
+profiles alone.
 
 ## CI
 

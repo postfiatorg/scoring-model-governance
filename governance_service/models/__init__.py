@@ -19,6 +19,7 @@ from governance_service.models.pool import (
     ReleaseEvaluation,
     ReleaseOutcome,
 )
+from governance_service.models.runtime_profile import RuntimeProfile
 
 __all__ = [
     "BlocklistEntry",
@@ -35,6 +36,7 @@ __all__ = [
     "RegistryEntry",
     "ReleaseEvaluation",
     "ReleaseOutcome",
+    "RuntimeProfile",
     "SnapshotFile",
     "SourcingReport",
     "ThinkingMode",
