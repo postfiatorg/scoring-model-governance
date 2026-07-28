@@ -68,6 +68,7 @@ governance_service/
 ├── model_blocklist.yaml # Standing blocklist of revisions that failed past rounds
 ├── request_template.json # Verbatim production model request (testnet round 15),
 │                        # the structural template for constructed edge cases
+├── _exam_modal_app.py   # Templated Modal app one exam candidate deploys as
 ├── api/
 │   ├── _helpers.py      # Admin auth and refresh-lock preconditions
 │   ├── health.py        # /health liveness endpoint
@@ -93,10 +94,13 @@ governance_service/
     ├── record_publisher.py # Record rendering, snapshot pinning, publication
     ├── corpus.py        # Exam corpus assembly: verified history + manifest
     ├── edge_cases.py    # Deterministic constructed edge-case catalogue
-    └── request_adaptation.py # Per-candidate request adaptation rule
+    ├── request_adaptation.py # Per-candidate request adaptation rule
+    ├── candidate_profiles.py # Deployable profiles for the current pool
+    └── runtime_manager.py # Per-candidate Modal deployment lifecycle
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published pool-refresh records, one file pair per refresh
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
+                         # exam_smoke_deploy.py: account-readiness smoke tool
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
 docs/                    # The governance methodology and public records
@@ -243,6 +247,31 @@ byte-for-byte) and the exclusivity property (adapting to another
 candidate changes nothing but the declared fields), so any verifier can
 reconstruct identical per-candidate requests from the frozen corpus and
 profiles alone.
+
+## Candidate runtime management (G.3.3)
+
+Governance exams deploy every pool candidate on Modal on its pinned
+deterministic profile. `services/runtime_manager.py` manages that
+lifecycle with an idempotent ensure-deployed contract: apps are named by
+candidate identity (never by round), the live app's own `profile` control
+endpoint reports what it serves and reuse happens on a content-hash
+match, drift or absence triggers a redeploy that replaces the app in
+place, a verified warm-up proves the endpoint serves before anything
+trusts it, and candidates that leave the pool are cleaned up. The
+deployment target is `_exam_modal_app.py`, a templated Modal app adapted
+from the validator sidecar's pattern; `services/candidate_profiles.py`
+pins the current pool's deployable profiles — production's digest-pinned
+SGLang image and deterministic serving arguments, thinking disabled
+explicitly for every candidate with the evidence recorded per model.
+
+Failures are classified two-sided: infrastructure problems (auth, quota,
+billing, platform outages) raise `InfrastructureError` — retryable, never
+round state — while a candidate's own failure to deploy or serve raises
+`CandidateDeployError` carrying the structured evidence mechanical
+disqualification requires; ambiguity fails toward infrastructure.
+`scripts/exam_smoke_deploy.py` is the account-readiness tool: it deploys
+one candidate through the manager, proves a real inference, and tears the
+app down (see `docs/ExamAccountReadiness.md` for the recorded runs).
 
 ## CI
 

@@ -1,5 +1,6 @@
 fastapi>=0.115
 httpx>=0.28
+modal>=1.5
 psycopg2-binary>=2.9
 pydantic-settings>=2.5
 pytest>=8.0

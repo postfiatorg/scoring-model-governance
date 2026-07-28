@@ -122,6 +122,29 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Exam runtime (Modal)
+    # -------------------------------------------------------------------------
+    exam_modal_environment: str = Field(
+        default="main",
+        description="Modal environment the exam candidate apps deploy into",
+    )
+    exam_modal_scaledown_minutes: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Idle scaledown window for exam candidate containers; "
+        "capped at Modal's 20-minute maximum",
+    )
+    modal_key: str = Field(
+        default="",
+        description="Modal proxy-auth key the exam endpoint probes send; "
+        "required for exam runtime operations",
+    )
+    modal_secret: str = Field(
+        default="", description="Modal proxy-auth secret paired with modal_key"
+    )
+
+    # -------------------------------------------------------------------------
     # GPU fit
     # -------------------------------------------------------------------------
     gpu_mem_fraction: float = Field(
