@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 MANIFEST_VERSION = 1
 BUNDLE_FILE_PATH = "bundle.json"
+MODEL_REQUEST_FILE_PATH = "inputs/model_request.json"
 INPUT_PACKAGE_KIND = "input"
 
 # The rounds endpoint's own page-size cap (scoring_service/api/scoring.py).
@@ -195,6 +196,43 @@ def _fetch_rounds_until_window(client: httpx.Client, window: int) -> list[dict]:
             break
         offset += ROUNDS_PAGE_LIMIT
     return rounds
+
+
+
+def fetch_exam_request(
+    client: httpx.Client, item: VerifiedHistoricalItem
+) -> dict[str, Any]:
+    """One historical item's frozen model request, hash-verified on fetch.
+
+    The exam engine consumes requests, not references; this re-fetches the
+    package boundary (bundle hash against ``input_package_hash``) and the
+    request file (against its ``file_hashes`` entry) so an exam can never
+    run on bytes that drifted since corpus assembly.
+    """
+    bundle = _fetch_package_file(
+        client, item.round_number, item.input_package_cid, BUNDLE_FILE_PATH
+    )
+    if canonical_json_hash(bundle) != item.input_package_hash:
+        raise CorpusVerificationError(
+            f"Round {item.round_number} bundle hash changed since corpus assembly"
+        )
+    file_hashes = _parse_bundle(
+        bundle,
+        {"round_number": item.round_number},
+    )
+    expected = file_hashes.get(MODEL_REQUEST_FILE_PATH)
+    if expected is None:
+        raise CorpusVerificationError(
+            f"Round {item.round_number} package has no {MODEL_REQUEST_FILE_PATH}"
+        )
+    request = _fetch_package_file(
+        client, item.round_number, item.input_package_cid, MODEL_REQUEST_FILE_PATH
+    )
+    if canonical_json_hash(request) != expected:
+        raise CorpusVerificationError(
+            f"Round {item.round_number} model request hash mismatch"
+        )
+    return request
 
 
 def build_corpus(client: httpx.Client) -> CorpusResult:

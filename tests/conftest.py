@@ -35,6 +35,8 @@ def db():
     init_db_if_needed()
     connection = get_db()
     cursor = connection.cursor()
+    cursor.execute("DELETE FROM exam_outputs")
+    cursor.execute("DELETE FROM exam_runs")
     cursor.execute("DELETE FROM pool_refresh_candidates")
     cursor.execute("DELETE FROM pool_refreshes")
     cursor.execute("DELETE FROM blocklist")
@@ -44,6 +46,8 @@ def db():
 
     connection.rollback()
     cursor = connection.cursor()
+    cursor.execute("DELETE FROM exam_outputs")
+    cursor.execute("DELETE FROM exam_runs")
     cursor.execute("DELETE FROM pool_refresh_candidates")
     cursor.execute("DELETE FROM pool_refreshes")
     cursor.execute("DELETE FROM blocklist")

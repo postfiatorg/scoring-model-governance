@@ -143,6 +143,11 @@ class Settings(BaseSettings):
     modal_secret: str = Field(
         default="", description="Modal proxy-auth secret paired with modal_key"
     )
+    exam_request_timeout_seconds: int = Field(
+        default=2100,
+        description="Per-inference request timeout for exam runs, mirroring "
+        "production's modal_request_timeout_seconds",
+    )
 
     # -------------------------------------------------------------------------
     # GPU fit

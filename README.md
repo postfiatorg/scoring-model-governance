@@ -96,11 +96,13 @@ governance_service/
     ├── edge_cases.py    # Deterministic constructed edge-case catalogue
     ├── request_adaptation.py # Per-candidate request adaptation rule
     ├── candidate_profiles.py # Deployable profiles for the current pool
-    └── runtime_manager.py # Per-candidate Modal deployment lifecycle
+    ├── runtime_manager.py # Per-candidate Modal deployment lifecycle
+    └── exam_engine.py   # Exam execution: the corpus, three runs per item
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published pool-refresh records, one file pair per refresh
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_smoke_deploy.py: account-readiness smoke tool
+                         # exam_live_validation.py: small real-workspace exam run
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
 docs/                    # The governance methodology and public records
@@ -272,6 +274,30 @@ disqualification requires; ambiguity fails toward infrastructure.
 `scripts/exam_smoke_deploy.py` is the account-readiness tool: it deploys
 one candidate through the manager, proves a real inference, and tears the
 app down (see `docs/ExamAccountReadiness.md` for the recorded runs).
+
+## Exam execution engine (G.3.4)
+
+`services/exam_engine.py` is where the harness pieces become one flow: it
+examines any list of candidate profiles — pool-size general; excluding a
+drawn judge is round orchestration's concern — sequentially. Each
+candidate is deployed on its pinned profile with verified warm-up, then
+every corpus item is adapted to the candidate and sent three times
+through the production scoring pattern (direct chat-completions request,
+production per-request timeout). Only the model's message content
+survives the client boundary — never the response envelope, whose
+per-call identifiers would poison determinism comparisons — and every
+answer is stored with the canonical content hash the scoring pipeline and
+validator sidecars already agree on
+(`canonical_json_hash({"raw_response": content})`), plus latency and
+token measurements that are published but never ranked.
+
+Results persist in `exam_runs` / `exam_outputs` (migration 005). An
+interrupted run resumes without re-paying completed inferences.
+Infrastructure failures abort the run as retryable; a candidate's own
+serve failure is recorded as the structured disqualification evidence
+the mechanical checks consume. `scripts/exam_live_validation.py` runs a
+two-item, three-run fragment against one real deployed candidate and
+reports whether the runs came back bit-identical.
 
 ## CI
 
