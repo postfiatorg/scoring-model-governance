@@ -10,14 +10,21 @@ Usage: python scripts/check_vendor_freshness.py --branch main --mode warning
 
 import argparse
 import hashlib
+import importlib.util
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
-from governance_service.scoring import (
-    SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES,
-    SUPPORTED_PARSER_CONTENT_HASHES,
-)
+# Load the pins by file path: importing through the package would execute
+# governance_service.scoring's __init__, which needs runtime dependencies
+# this bare-interpreter workflow deliberately does not install.
+_PINS_PATH = Path(__file__).resolve().parent.parent / "governance_service" / "scoring" / "pins.py"
+_spec = importlib.util.spec_from_file_location("vendor_pins", _PINS_PATH)
+_pins = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_pins)
+SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES = _pins.SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES
+SUPPORTED_PARSER_CONTENT_HASHES = _pins.SUPPORTED_PARSER_CONTENT_HASHES
 
 UPSTREAM_RAW_URL = (
     "https://raw.githubusercontent.com/postfiatorg/dynamic-unl-scoring/{branch}/{path}"
