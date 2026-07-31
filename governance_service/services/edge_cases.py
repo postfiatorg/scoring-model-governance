@@ -137,6 +137,26 @@ def _weak(vid: str, *, agr: float, unl: bool = False, server_version: str = CURR
     )
 
 
+def validator_entries(request: dict) -> list[dict]:
+    """The validator array embedded in a production-format request."""
+    content = next(
+        (m["content"] for m in request.get("messages", []) if m.get("role") == "user"),
+        None,
+    )
+    if content is None:
+        raise EdgeCaseTemplateError("Request has no user message")
+    marker_at = content.find(VALIDATOR_DATA_MARKER)
+    if marker_at < 0:
+        raise EdgeCaseTemplateError("Request has no validator data block")
+    try:
+        validators, _ = json.JSONDecoder().raw_decode(
+            content[marker_at + len(VALIDATOR_DATA_MARKER) :]
+        )
+    except ValueError as exc:
+        raise EdgeCaseTemplateError(f"Validator data block is not valid JSON: {exc}") from exc
+    return validators
+
+
 def _load_template() -> dict:
     template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
     user = _user_message(template)

@@ -14,7 +14,10 @@ import sys
 import urllib.error
 import urllib.request
 
-from governance_service.scoring import SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES
+from governance_service.scoring import (
+    SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES,
+    SUPPORTED_PARSER_CONTENT_HASHES,
+)
 
 UPSTREAM_RAW_URL = (
     "https://raw.githubusercontent.com/postfiatorg/dynamic-unl-scoring/{branch}/{path}"
@@ -25,6 +28,11 @@ CHECKED_MODULES = [
         "commit_reveal",
         "scoring_service/services/commit_reveal.py",
         SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES,
+    ),
+    (
+        "response_parser",
+        "scoring_service/services/response_parser.py",
+        SUPPORTED_PARSER_CONTENT_HASHES,
     ),
 ]
 

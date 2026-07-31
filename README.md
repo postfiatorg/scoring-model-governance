@@ -86,7 +86,8 @@ governance_service/
 │   └── runtime_profile.py # Candidate runtime profile, the adaptation rule's input
 ├── scoring/
 │   ├── _vendor_source/  # Byte-identical dynamic-unl-scoring copies, pinned by content hash
-│   └── hashing.py       # Adapted canonical-hash rules (the vendored module needs xrpl)
+│   ├── hashing.py       # Adapted canonical-hash rules (the vendored module needs xrpl)
+│   └── parser.py        # Adapted production response parser (foundation import inlined)
 └── services/
     ├── gpu_fit.py       # Dtype-aware cheapest-fit GPU assignment
     ├── candidate_sourcing.py # One auditable sourcing pass over a release
@@ -97,7 +98,8 @@ governance_service/
     ├── request_adaptation.py # Per-candidate request adaptation rule
     ├── candidate_profiles.py # Deployable profiles for the current pool
     ├── runtime_manager.py # Per-candidate Modal deployment lifecycle
-    └── exam_engine.py   # Exam execution: the corpus, three runs per item
+    ├── exam_engine.py   # Exam execution: the corpus, three runs per item
+    └── disqualification.py # Mechanical pass/fail verdicts over stored runs
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published pool-refresh records, one file pair per refresh
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
@@ -296,8 +298,31 @@ interrupted run resumes without re-paying completed inferences.
 Infrastructure failures abort the run as retryable; a candidate's own
 serve failure is recorded as the structured disqualification evidence
 the mechanical checks consume. `scripts/exam_live_validation.py` runs a
-two-item, three-run fragment against one real deployed candidate and
-reports whether the runs came back bit-identical.
+two-item, three-run fragment against one real deployed candidate,
+applies the mechanical disqualification checker to the stored rows, and
+reports the determinism result and verdict
+(see `docs/ExamLiveValidation.md` for the recorded run).
+
+## Mechanical disqualification (G.3.5)
+
+`services/disqualification.py` applies the methodology's three mechanical
+pass/fail rules to stored exam runs as pure, deterministic, idempotent
+computation: every stored answer must parse with the unmodified
+production response parser (vendored in `scoring/_vendor_source/`,
+pinned by content hash, drift-checked by the Vendor Freshness workflow,
+runnable as `scoring/parser.py`); all repeat runs of every corpus item
+must carry one identical canonical response hash; and the candidate must
+have deployed and served on its pinned profile, decided by the run's
+terminal status and its structured serve-failure evidence. Parsing
+consumes each item's validator identity map — historical items carry
+theirs in the frozen input package, constructed edge cases derive
+synthetic maps from their own validator ids.
+
+The verdict and per-rule evidence persist on the exam run (migration
+006), in the shape the published round record consumes; recomputation
+always overwrites with the identical result. Booking disqualified
+revisions into the standing blocklist belongs to round orchestration,
+never this layer.
 
 ## CI
 

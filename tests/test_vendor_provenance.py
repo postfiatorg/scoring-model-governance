@@ -7,10 +7,12 @@ import pytest
 
 from governance_service.scoring import (
     SUPPORTED_COMMIT_REVEAL_CONTENT_HASHES,
+    SUPPORTED_PARSER_CONTENT_HASHES,
     CanonicalHashError,
     canonical_json_bytes,
     canonical_sha256,
     is_sha256_hex,
+    parse_response,
 )
 
 VENDOR_DIR = (
@@ -55,3 +57,25 @@ def test_is_sha256_hex():
     assert not is_sha256_hex("A" * 64)
     assert not is_sha256_hex("a" * 63)
     assert not is_sha256_hex(None)
+
+
+def test_vendored_parser_matches_pin():
+    digest = hashlib.sha256((VENDOR_DIR / "response_parser.py").read_bytes()).hexdigest()
+    assert digest in SUPPORTED_PARSER_CONTENT_HASHES
+
+
+def test_adapted_parser_differs_only_in_the_inlined_alias():
+    vendored = (VENDOR_DIR / "response_parser.py").read_text(encoding="utf-8")
+    adapted = (VENDOR_DIR.parent / "parser.py").read_text(encoding="utf-8")
+    assert "from scoring_service.services.prompt_builder import" in vendored
+    assert "from scoring_service" not in adapted
+    assert "ValidatorIdentityMap = dict[str, dict[str, str]]" in adapted
+    # The logic is untouched: byte-identical from the first class onward.
+    marker = "class NetworkReportCategory"
+    assert vendored.split(marker, 1)[1] == adapted.split(marker, 1)[1]
+
+
+def test_adapted_parser_reports_failures_in_band():
+    result = parse_response("no json here", {})
+    assert result.complete is False
+    assert result.errors

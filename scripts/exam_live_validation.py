@@ -1,9 +1,11 @@
-"""Small live validation of the exam execution engine on the real workspace.
+"""Small live validation of the exam pipeline on the real workspace.
 
 Runs a fragment of the exam for real: two constructed edge-case items,
 three runs each, against one deployed pool candidate, through the same
-engine round orchestration will call — then tears the app down. Produces
-the first real-world data point on cross-run bit-identical determinism.
+engine round orchestration will call — then applies the mechanical
+disqualification checker to the stored outputs and tears the app down.
+Produces the real-world data point on cross-run bit-identical determinism
+and the checker's verdict over genuinely stored exam rows.
 
     PYTHONPATH=. python scripts/exam_live_validation.py "Qwen/Qwen3.6-27B-FP8" out.json
 
@@ -18,7 +20,16 @@ import time
 from governance_service.database import get_db, init_db_if_needed
 from governance_service.services import edge_cases
 from governance_service.services.candidate_profiles import CURRENT_POOL_PROFILES
-from governance_service.services.exam_engine import ExamEngine, ExamItem, get_run_outputs
+from governance_service.services.disqualification import (
+    evaluate_run,
+    synthetic_validator_map,
+)
+from governance_service.services.exam_engine import (
+    REPEAT_COUNT,
+    ExamEngine,
+    ExamItem,
+    get_run_outputs,
+)
 from governance_service.services.runtime_manager import ExamRuntimeManager
 
 VALIDATION_CASES = ("all_below_cutoff", "injection_in_evidence")
@@ -67,6 +78,17 @@ def main() -> int:
             }
         document["run_id"] = run_id
         document["bit_identical_across_runs"] = deterministic
+
+        validator_maps = {
+            item.item_id: synthetic_validator_map(item.request) for item in items
+        }
+        verdict = evaluate_run(connection, run_id, validator_maps, repeats=REPEAT_COUNT)
+        document["disqualification"] = {
+            "verdict": verdict["verdict"],
+            "rules": {
+                name: rule["outcome"] for name, rule in verdict["rules"].items()
+            },
+        }
         document["status"] = "ok"
     except SystemExit:
         pass
