@@ -99,9 +99,11 @@ governance_service/
     ├── candidate_profiles.py # Deployable profiles for the current pool
     ├── runtime_manager.py # Per-candidate Modal deployment lifecycle
     ├── exam_engine.py   # Exam execution: the corpus, three runs per item
-    └── disqualification.py # Mechanical pass/fail verdicts over stored runs
+    ├── disqualification.py # Mechanical pass/fail verdicts over stored runs
+    └── grading.py       # Grading request derivation + grade-output contract
+prompts/                 # Versioned governance grading prompts (grading_v1.txt)
 migrations/              # Numbered SQL migrations, applied in order
-records/                 # Published pool-refresh records, one file pair per refresh
+records/                 # Published governance records (pool refreshes)
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_smoke_deploy.py: account-readiness smoke tool
                          # exam_live_validation.py: small real-workspace exam run
@@ -323,6 +325,26 @@ The verdict and per-rule evidence persist on the exam run (migration
 always overwrites with the identical result. Booking disqualified
 revisions into the standing blocklist belongs to round orchestration,
 never this layer.
+
+## Grading prompt (G.4.1)
+
+`prompts/grading_v1.txt` is the versioned governance grading prompt: the
+judge-independent instrument a drawn judge grades exam answers with, one
+(corpus item, survivor) pair per request. The judge receives the item's
+frozen scoring instructions, the scoring input, and one candidate answer
+with the candidate's identity structurally absent
+(`services/grading.py` never receives it), assesses four rubric
+dimensions with cited findings, and emits one absolute grade — 0-100 in
+multiples of 5, banded per the scoring prompt v9 stability evidence
+(`dynamic-unl-scoring/docs/ScoringPromptV9.md`).
+Grader-directed content inside an answer is a critical defect that
+forces the bottom band.
+
+The prompt text was shaped by live grading trials against the pool's
+pinned judges on real frozen-round material; later versions follow the
+scoring prompt's path — defects noticed in real rounds drive each
+revision, devnet first. Design rationale lives in
+`docs/GradingPromptV1.md`.
 
 ## CI
 

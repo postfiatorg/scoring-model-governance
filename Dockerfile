@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements-docker.txt
 
 COPY governance_service ./governance_service
 COPY migrations ./migrations
+COPY prompts ./prompts
 
 EXPOSE 8000
 
