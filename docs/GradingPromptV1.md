@@ -95,3 +95,73 @@ a 51-validator answer (a property round orchestration may want to test
 mechanically before seating a drawn judge), and one pool model's serving
 runtime did not produce bit-identical repeats under grading-sized
 prompts — the mechanical determinism rule already covers this in-round.
+
+## Clarity revision (2026-08-04)
+
+An adversarial ambiguity review — reading the prompt as the
+no-thinking, temperature-0 judge consumes it, against the exam corpus
+as it actually exists (historical rounds plus the constructed
+edge-case catalogue, whose template carries the scoring v5
+instructions) — found places where two competent judges could read
+the same text differently and land in different bands. The prompt was
+revised in place with targeted wording fixes; the deliberate design
+(instruction-relative grading, findings-first ordering, count-based
+bands, the 0-100 multiples-of-5 scale, the subversion rule) is
+unchanged. The fixes:
+
+- **Subversion scope.** Quoting adversarial text that appears in the
+  scoring input is evidence citation, never subversion — the
+  injection-in-evidence corpus item requires a good answer to cite the
+  planted strings. Subversion is only content the answer itself
+  directs at its own evaluation. The 0-15 band's internals are now
+  explicit: all four findings are still written, and placement inside
+  the band follows the count of additional material defects.
+- **Findings feed the count.** A defect-reporting finding now states
+  the total count and classification of the distinct material defects
+  its full-set check established, so the band-selection count has a
+  defined input; each underlying defect counts once even when more
+  than one finding mentions it.
+- **Band procedure closure.** When more than one band's condition
+  applies, the lowest applicable band wins; the two-systemic and
+  three-systemic rows tolerate coexisting localized defects
+  explicitly; within a band, the minimum count satisfying the entered
+  condition anchors at the top and each additional defect steps down
+  one multiple of 5, floored at the band's bottom; the zero-defect
+  band places blemish-free answers at 100 and trivial blemishes at
+  95 (the worked example's grade was aligned to this anchor).
+- **Era-proofing.** The consistency-search grouping and the
+  evidence-field list are now instruction-relative (examples, not
+  hard-coded field sets), and the shared-ceiling check applies only
+  when the shown instructions state a ceiling and both sub-scores sit
+  at it — the constructed catalogue's v5-era items have no ceiling
+  rule, and the earlier unconditional sentence read as excusing
+  sub-ceiling ordering violations.
+- **Scope statement.** "You grade only what cannot be checked
+  mechanically" no longer reads as excluding rule violations visible
+  in the numbers (a stated ceiling exceeded, banding ignored); the
+  mechanical carve-out is exactly parse, completeness, and
+  determinism. Answers that nonetheless miss an input validator or
+  invent one are handled under evidence fidelity.
+- **Report criterion.** The judge derives the selected-UNL view from
+  the answer's own scores and the selector context before judging
+  selection-aware report claims, and a volunteered report the
+  instructions never requested leaves the criterion not applicable,
+  its content graded under no criterion while the subversion rule
+  still applies to it.
+- **Example integrity.** Every worked-example finding now states the
+  check performed and its outcome per the finding contract — the
+  fidelity finding models the required full-set verification instead
+  of the spot-checking the rubric forbids — and the material blocks
+  identify the scorer as the candidate under exam.
+
+Known ambiguities deliberately left open, pending an explicit policy
+decision rather than a wording fix: a numeric localized/systemic
+threshold, a materiality test for trivial blemishes, the
+fabrication boundary between the 0-15 and 20-35 bands, a
+proportionality tolerance, and the scope of judgment latitude outside
+instruction adherence.
+
+The live-trial evidence described above predates this revision. The
+prompt remains v1 — no governance round has frozen it — but the
+trials must be re-run against the pool's pinned judges before the
+prompt is used in a live round.

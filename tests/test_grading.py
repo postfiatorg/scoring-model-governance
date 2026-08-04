@@ -215,6 +215,56 @@ def test_criteria_names_are_bound_to_the_prompt():
         assert f'"{name}"' in system
 
 
+# -- clarity-revision pins ---------------------------------------------------
+
+CLARITY_RULES = (
+    "referred to below as the scorer",
+    "including rule violations visible in the numbers",
+    "missing an input validator",
+    "including domain and domain_verified",
+    "When the shown instructions state such a ceiling",
+    "the evidence fields the shown instructions assign to that dimension",
+    "derive the selected-UNL view yourself",
+    "volunteers a report the instructions did not request",
+    "evidence citation, never subversion",
+    "Still write all four findings normally",
+    "states the total count of distinct material defects",
+    "counting each underlying defect once",
+    "the lowest applicable band wins",
+    "100 with no blemish at all",
+    "the band condition the answer met",
+    "never below the band's bottom",
+)
+
+
+def test_clarity_rules_are_bound_to_the_prompt():
+    """Each phrase pins one rule the ambiguity revision added; a prompt
+    edit that drops a rule must fail loudly here."""
+    system, _ = load_grading_prompt()
+    for phrase in CLARITY_RULES:
+        assert phrase in system, phrase
+
+
+def _worked_example() -> dict:
+    system, _ = load_grading_prompt()
+    start = system.index("{", system.index("Example format"))
+    payload, _ = json.JSONDecoder().raw_decode(system[start:])
+    return payload
+
+
+def test_worked_example_obeys_the_grade_output_contract():
+    """The example is the judge's strongest behavioral template: it must
+    satisfy the enforced output contract, grade at the top of the 80-90
+    band its single localized defect selects, and model full-set
+    verification rather than the spot-checking the rubric forbids."""
+    parsed = parse_grade_output(json.dumps(_worked_example()))
+    assert parsed.grade == 90
+    assert "full-set" in parsed.criteria["evidence_fidelity"].lower()
+    findings = json.dumps(parsed.criteria).lower()
+    assert "spot-check" not in findings
+    assert "spot check" not in findings
+
+
 # -- grade-output contract ---------------------------------------------------
 
 
