@@ -1,4 +1,4 @@
-"""Grading request construction and grade-output validation.
+"""Grading request construction and judge-output validation.
 
 The grading request is a frozen derivation, like the exam's request
 adaptation: from one corpus item's frozen request, one candidate's stored
@@ -10,10 +10,13 @@ the scoring input, and the answer content, nothing else.
 
 The versioned grading prompt lives in ``prompts/grading_v<N>.txt`` with
 the scoring pipeline's template convention (system and user sections
-split by markers). Grade outputs are validated here to the v1 contract —
-four rubric findings, one absolute grade in multiples of 5, a
-justification — which G.4.2 formalizes into the frozen grade schema,
-parser, and canonical hashing.
+split by markers). Under the G.4 checker/judge/formula split the judge
+owns only the language checks: its output is a set of structured defect
+objects validated here — the judge defect schema (G.4.2) — with no
+grade, no counts, and no severity anywhere in it. The mechanical
+grading checker (G.4.4) owns every defect kind with a closed-form right
+answer, and the grade formula (G.4.5) computes grades from the two
+defect lists.
 """
 
 import copy
@@ -25,7 +28,7 @@ from typing import Any
 
 from governance_service.models.runtime_profile import RuntimeProfile
 
-GRADING_PROMPT_VERSION = 1
+GRADING_PROMPT_VERSION = 2
 PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 GRADING_PROMPT_PATH = PROMPTS_DIR / f"grading_v{GRADING_PROMPT_VERSION}.txt"
 
@@ -37,19 +40,33 @@ INPUT_PLACEHOLDER = "{scoring_input}"
 ANSWER_PLACEHOLDER = "{candidate_answer}"
 PLACEHOLDERS = (INSTRUCTIONS_PLACEHOLDER, INPUT_PLACEHOLDER, ANSWER_PLACEHOLDER)
 
-# Findings plus one grade are far smaller than a scoring answer; generous
-# headroom without production's 16384.
-GRADING_MAX_TOKENS = 4096
+# Defect lists on a badly flawed answer run long; still half of
+# production scoring's 16384.
+GRADING_MAX_TOKENS = 8192
 
-GRADE_CRITERIA = (
-    "evidence_fidelity",
-    "instruction_adherence",
-    "cross_validator_consistency",
-    "network_report_quality",
-)
-GRADE_MIN = 0
-GRADE_MAX = 100
-GRADE_STEP = 5
+OUTCOME_DEFECTS_FOUND = "defects_found"
+OUTCOME_NONE_FOUND = "none_found"
+OUTCOME_NOT_APPLICABLE = "not_applicable"
+
+# The judge-owned defect kinds, exclusive to it by the G.4 split: the
+# mechanical checker owns every kind with a closed-form right answer.
+SECTION_KINDS = {
+    "evidence_fidelity": ("false_claim", "ignored_evidence"),
+    "network_report_quality": ("report_mismatch",),
+    "subversion": ("subversion",),
+}
+SECTION_OUTCOMES = {
+    "evidence_fidelity": (OUTCOME_DEFECTS_FOUND, OUTCOME_NONE_FOUND),
+    "network_report_quality": (
+        OUTCOME_DEFECTS_FOUND,
+        OUTCOME_NONE_FOUND,
+        OUTCOME_NOT_APPLICABLE,
+    ),
+    "subversion": (OUTCOME_DEFECTS_FOUND, OUTCOME_NONE_FOUND),
+}
+# Kinds whose defect must cite at least one validator; report- and
+# answer-level defects may legitimately cite none.
+KINDS_REQUIRING_VALIDATORS = ("false_claim", "ignored_evidence")
 
 
 class GradingPromptError(ValueError):
@@ -57,17 +74,35 @@ class GradingPromptError(ValueError):
     a malformed prompt template, exam request, or answer content."""
 
 
-class GradeOutputError(ValueError):
-    """Raised when a judge's output violates the grade-output contract."""
+class JudgeOutputError(ValueError):
+    """Raised when a judge's output violates the defect schema."""
 
 
 @dataclass(frozen=True)
-class GradeOutput:
-    """One validated grading answer."""
+class JudgeDefect:
+    """One reported defect: the quoted claim and the contradiction."""
 
-    criteria: dict[str, str]
-    grade: int
-    justification: str
+    kind: str
+    validator_ids: tuple[str, ...]
+    quote: str
+    explanation: str
+
+
+@dataclass(frozen=True)
+class SectionFinding:
+    """One section's explicit outcome and its defects."""
+
+    outcome: str
+    defects: tuple[JudgeDefect, ...]
+
+
+@dataclass(frozen=True)
+class JudgeOutput:
+    """One validated judge answer under the defect schema."""
+
+    evidence_fidelity: SectionFinding
+    network_report_quality: SectionFinding
+    subversion: SectionFinding
 
 
 @lru_cache(maxsize=None)
@@ -184,50 +219,104 @@ def build_grading_request(
     }
 
 
-def parse_grade_output(content: str) -> GradeOutput:
-    """Validate one judge answer against the v1 grade-output contract.
+def _parse_defect(section: str, index: int, payload: Any) -> JudgeDefect:
+    label = f"{section}.defects[{index}]"
+    if not isinstance(payload, dict):
+        raise JudgeOutputError(f"{label} must be a JSON object")
+    if set(payload) != {"kind", "validator_ids", "quote", "explanation"}:
+        raise JudgeOutputError(
+            f"{label} must have exactly the keys kind, validator_ids, "
+            f"quote, explanation"
+        )
 
-    Deliberately strict: the judge must emit exactly the contract's JSON
-    object with nothing around it, and nothing is repaired here. Key
-    order is deliberately not checked — the prompt requests an order to
-    shape the judge's reasoning, while repeat stability is enforced at
-    the byte level by the determinism rule.
+    kind = payload["kind"]
+    if kind not in SECTION_KINDS[section]:
+        raise JudgeOutputError(
+            f"{label}.kind must be one of {SECTION_KINDS[section]}"
+        )
+
+    validator_ids = payload["validator_ids"]
+    if not isinstance(validator_ids, list) or not all(
+        isinstance(v, str) and v.strip() for v in validator_ids
+    ):
+        raise JudgeOutputError(
+            f"{label}.validator_ids must be a list of non-empty strings"
+        )
+    if len(set(validator_ids)) != len(validator_ids):
+        raise JudgeOutputError(f"{label}.validator_ids must not repeat ids")
+    if kind in KINDS_REQUIRING_VALIDATORS and not validator_ids:
+        raise JudgeOutputError(
+            f"{label}: a {kind} defect must cite at least one validator id"
+        )
+
+    for field in ("quote", "explanation"):
+        value = payload[field]
+        if not isinstance(value, str) or not value.strip():
+            raise JudgeOutputError(f"{label}.{field} must be a non-empty string")
+
+    return JudgeDefect(
+        kind=kind,
+        validator_ids=tuple(validator_ids),
+        quote=payload["quote"],
+        explanation=payload["explanation"],
+    )
+
+
+def _parse_section(section: str, payload: Any) -> SectionFinding:
+    if not isinstance(payload, dict):
+        raise JudgeOutputError(f"{section} must be a JSON object")
+    if set(payload) != {"outcome", "defects"}:
+        raise JudgeOutputError(
+            f"{section} must have exactly the keys outcome, defects"
+        )
+
+    outcome = payload["outcome"]
+    if outcome not in SECTION_OUTCOMES[section]:
+        raise JudgeOutputError(
+            f"{section}.outcome must be one of {SECTION_OUTCOMES[section]}"
+        )
+
+    defects_payload = payload["defects"]
+    if not isinstance(defects_payload, list):
+        raise JudgeOutputError(f"{section}.defects must be a list")
+    defects = tuple(
+        _parse_defect(section, index, defect)
+        for index, defect in enumerate(defects_payload)
+    )
+
+    if outcome == OUTCOME_DEFECTS_FOUND and not defects:
+        raise JudgeOutputError(
+            f"{section}: outcome {OUTCOME_DEFECTS_FOUND} requires at least one defect"
+        )
+    if outcome != OUTCOME_DEFECTS_FOUND and defects:
+        raise JudgeOutputError(
+            f"{section}: outcome {outcome} must carry no defects"
+        )
+    return SectionFinding(outcome=outcome, defects=defects)
+
+
+def parse_judge_output(content: str) -> JudgeOutput:
+    """Validate one judge answer against the defect schema.
+
+    Deliberately strict: the judge must emit exactly the schema's JSON
+    object with nothing around it, and nothing is repaired here. Every
+    section states an explicit outcome, so an absent check is a
+    contract violation rather than a silent omission; repeat stability
+    is enforced at the byte level by the determinism rule.
     """
     try:
         payload = json.loads(content)
     except ValueError as exc:
-        raise GradeOutputError(f"Grade output is not valid JSON: {exc}") from exc
+        raise JudgeOutputError(f"Judge output is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict):
-        raise GradeOutputError("Grade output must be a JSON object")
-    if set(payload) != {"criteria", "grade", "justification"}:
-        raise GradeOutputError(
-            "Grade output must have exactly the keys criteria, grade, justification"
+        raise JudgeOutputError("Judge output must be a JSON object")
+    if set(payload) != set(SECTION_KINDS):
+        raise JudgeOutputError(
+            f"Judge output must have exactly the keys {tuple(SECTION_KINDS)}"
         )
-
-    criteria = payload["criteria"]
-    if not isinstance(criteria, dict) or set(criteria) != set(GRADE_CRITERIA):
-        raise GradeOutputError(
-            f"criteria must be an object with exactly the keys {GRADE_CRITERIA}"
-        )
-    findings: dict[str, str] = {}
-    for name in GRADE_CRITERIA:
-        finding = criteria[name]
-        if not isinstance(finding, str) or not finding.strip():
-            raise GradeOutputError(f"criteria.{name} must be a non-empty string")
-        findings[name] = finding
-
-    grade = payload["grade"]
-    if isinstance(grade, bool) or not isinstance(grade, int):
-        raise GradeOutputError("grade must be an integer")
-    if not GRADE_MIN <= grade <= GRADE_MAX:
-        raise GradeOutputError(f"grade must be between {GRADE_MIN} and {GRADE_MAX}")
-    if grade % GRADE_STEP:
-        raise GradeOutputError(f"grade must be a multiple of {GRADE_STEP}")
-
-    justification = payload["justification"]
-    if not isinstance(justification, str) or not justification.strip():
-        raise GradeOutputError("justification must be a non-empty string")
-
-    return GradeOutput(
-        criteria=findings, grade=grade, justification=justification
+    return JudgeOutput(
+        **{
+            section: _parse_section(section, payload[section])
+            for section in SECTION_KINDS
+        }
     )

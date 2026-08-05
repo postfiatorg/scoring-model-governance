@@ -7,6 +7,13 @@ round. The grade it produces is the round's entire ranking, so the
 prompt is a frozen, public, per-round protocol artifact. This document
 records the design decisions behind it.
 
+**Superseded.** The G.4 restructure (2026-08-04) split grading three
+ways — mechanical checker, language-only judge, grade formula — and
+`prompts/grading_v2.txt` with the judge defect schema replaced this
+prompt before any governance round froze it (see
+`docs/GradingPromptV2.md`). This document stays as the design record
+of v1 and of the clarity revision whose findings drove the split.
+
 ## What one grading request contains
 
 One grading request grades one (corpus item, survivor) pair. The judge
@@ -74,7 +81,8 @@ Per-item banding follows the scoring prompt v9 stability evidence
 (`dynamic-unl-scoring/docs/ScoringPromptV9.md`): fine-grained per-item
 precision is noise no model can justify.
 One-decimal final grades arise in code, from the mean over corpus items
-(G.4.2) — the judge itself never emits decimals.
+(the grade formula, G.4.5 after the G.4 restructure) — the judge itself
+never emits decimals.
 
 ## Development notes
 

@@ -100,8 +100,8 @@ governance_service/
     ├── runtime_manager.py # Per-candidate Modal deployment lifecycle
     ├── exam_engine.py   # Exam execution: the corpus, three runs per item
     ├── disqualification.py # Mechanical pass/fail verdicts over stored runs
-    └── grading.py       # Grading request derivation + grade-output contract
-prompts/                 # Versioned governance grading prompts (grading_v1.txt)
+    └── grading.py       # Grading request derivation + judge defect schema
+prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
@@ -326,25 +326,35 @@ always overwrites with the identical result. Booking disqualified
 revisions into the standing blocklist belongs to round orchestration,
 never this layer.
 
-## Grading prompt (G.4.1)
+## Grading prompt and judge defect schema (G.4.1-G.4.2)
 
-`prompts/grading_v1.txt` is the versioned governance grading prompt: the
-judge-independent instrument a drawn judge grades exam answers with, one
-(corpus item, survivor) pair per request. The judge receives the item's
-frozen scoring instructions, the scoring input, and one candidate answer
-with the candidate's identity structurally absent
-(`services/grading.py` never receives it), assesses four rubric
-dimensions with cited findings, and emits one absolute grade — 0-100 in
-multiples of 5, banded per the scoring prompt v9 stability evidence
-(`dynamic-unl-scoring/docs/ScoringPromptV9.md`).
-Grader-directed content inside an answer is a critical defect that
-forces the bottom band.
+Grading follows the G.4 checker/judge/formula split: every check with
+a closed-form right answer belongs to the mechanical grading checker
+(G.4.4), the per-item grade is computed by the versioned grade
+formula (G.4.5), and the drawn judge owns only the language checks.
+`prompts/grading_v2.txt` is the current versioned grading prompt: the
+judge-independent instrument a drawn judge examines exam answers
+with, one (corpus item, survivor) pair per request. The judge
+receives the item's frozen scoring instructions, the scoring input,
+and one candidate answer with the candidate's identity structurally
+absent (`services/grading.py` never receives it), and emits
+structured defect objects under the judge defect schema — four
+judge-owned kinds (false_claim, ignored_evidence, report_mismatch,
+subversion), each citing validator ids, the verbatim quote, and the
+contradicting evidence, with every section stating an explicit
+outcome — no grade, no counts, no severity. `parse_judge_output`
+enforces the schema strictly, and repeat runs will be compared with
+the same canonical content-hash rule the exam pipeline uses
+(deterministic judge execution, G.4.3).
 
-The prompt text was shaped by live grading trials against the pool's
-pinned judges on real frozen-round material; later versions follow the
-scoring prompt's path — defects noticed in real rounds drive each
-revision, devnet first. Design rationale lives in
-`docs/GradingPromptV1.md`.
+The v1 prompt (retained as `prompts/grading_v1.txt`) was shaped by
+live grading trials on real frozen-round material and emitted banded
+grades itself; the split carved its mechanical checks and band
+procedure out into code. Later prompt versions follow the scoring
+prompt's path — defects noticed in real rounds drive each revision,
+devnet first. Design rationale: `docs/GradingPromptV2.md` (current),
+`docs/GradingPromptV1.md` (v1 history and the clarity revision that
+drove the split).
 
 ## CI
 
