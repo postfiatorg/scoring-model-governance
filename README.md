@@ -102,7 +102,8 @@ governance_service/
     ├── exam_engine.py   # Exam execution: the corpus, three runs per item
     ├── disqualification.py # Mechanical pass/fail verdicts over stored runs
     ├── grading.py       # Grading request derivation + judge defect schema
-    └── checker.py       # Mechanical grading checker: closed-form defects
+    ├── checker.py       # Mechanical grading checker: closed-form defects
+    └── grade_formula.py # Versioned formula: defect lists -> grades
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -381,6 +382,25 @@ never guesses. The Vendor Freshness workflow verifies every row's
 pinned hash against the upstream prompt file, and the v5 row is
 validated against the vendored real production request in the test
 suite. Curation rationale per row: `docs/MechanicalGradingChecker.md`.
+
+## Grade formula (G.4.4)
+
+`services/grade_formula.py` is where every grade number comes from:
+the versioned pure function (`GRADE_FORMULA_VERSION = 1`) from the
+checker's and the judge's defect lists to the per-item grade, banded
+0-100 in multiples of 5. Same-kind, same-dimension defects aggregate
+before anything counts; a merged defect touching 3+ validators is
+systemic; band selection is a count with lowest-band-wins (a single
+evidence defect covering half the validator set forces 20-35, and any
+subversion defect forces 0-15); placement anchors at the band top and
+steps down 5 per additional distinct defect, floored at the band
+bottom; zero defects grade 100 flat. A survivor's final grade is the
+unweighted mean of its per-item grades, 0-100 with one decimal — the
+resolution the incumbent-replacement margin compares. Every result
+carries receipts (the aggregated defects, classifications, counts,
+and band decision), and the thresholds are named, versioned
+constants: changing one is a new formula version. Design and
+constants rationale: `docs/GradeFormulaV1.md`.
 
 ## CI
 
