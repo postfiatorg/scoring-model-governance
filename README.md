@@ -103,13 +103,17 @@ governance_service/
     ├── disqualification.py # Mechanical pass/fail verdicts over stored runs
     ├── grading.py       # Grading request derivation + judge defect schema
     ├── checker.py       # Mechanical grading checker: closed-form defects
-    └── grade_formula.py # Versioned formula: defect lists -> grades
+    ├── grade_formula.py # Versioned formula: defect lists -> grades
+    ├── grading_engine.py # Judge execution: pairs, repeats, verdicts
+    └── regrading.py     # Offline chain: frozen material -> grades
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_smoke_deploy.py: account-readiness smoke tool
                          # exam_live_validation.py: small real-workspace exam run
+                         # grading_live_validation.py: real-workspace grading run
+                         # regrade.py: offline re-grading over frozen material
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
 docs/                    # The governance methodology and public records
@@ -382,6 +386,32 @@ never guesses. The Vendor Freshness workflow verifies every row's
 pinned hash against the upstream prompt file, and the v5 row is
 validated against the vendored real production request in the test
 suite. Curation rationale per row: `docs/MechanicalGradingChecker.md`.
+
+## Deterministic judge execution (G.4.5)
+
+`services/grading_engine.py` runs a drawn judge for real: deployed
+through the same idempotent Modal runtime manager candidates use
+(judges are pool members), one grading request per (corpus item,
+survivor answer) pair built by the frozen derivation, each sent
+`REPEAT_COUNT` times through the production scoring pattern, every
+answer stored with its canonical content hash in `grading_runs` /
+`grading_outputs` (migration 007). Runs are idempotent per (judge
+profile, material) and resume after interruption without re-paying
+completed inferences; failures keep the exam engine's two-sided
+taxonomy, with the judge's own failures persisted as the structured
+evidence the redraw rule (G.5) consumes. `judge_mechanical_verdict`
+computes the judge's mechanical bar over stored rows: every output
+parses under the defect schema and every pair's repeats carry one
+identical hash.
+
+`services/regrading.py` is the offline re-grading chain — production
+answer parser, mechanical checker, defect-schema parser, grade formula
+— from frozen material to per-item grades and the final grade with
+complete receipts, runnable by anyone via `scripts/regrade.py`
+(no database, no Modal, no network), so judge rotation never erases
+cross-round comparability. `scripts/grading_live_validation.py`
+exercises the whole chain against one real deployed pool model; the
+recorded run lives in `docs/GradingLiveValidation.md`.
 
 ## Grade formula (G.4.4)
 

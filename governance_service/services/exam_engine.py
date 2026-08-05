@@ -157,7 +157,7 @@ class ExamEngine:
         sleep: Callable[[float], None] = time.sleep,
     ):
         self._runtime = runtime or ExamRuntimeManager()
-        self._http_post = http_post or _http_post
+        self._http_post = http_post or default_http_post
         self._sleep = sleep
 
     # -- the flow ------------------------------------------------------------
@@ -239,97 +239,12 @@ class ExamEngine:
     def _infer(
         self, profile: RuntimeProfile, endpoint_url: str, request: dict[str, Any]
     ) -> InferenceResult:
-        url = f"{endpoint_url.rstrip('/')}{CHAT_COMPLETIONS_PATH}"
-        body = {
-            key: request[key]
-            for key in (
-                "model",
-                "messages",
-                "temperature",
-                "max_tokens",
-                "response_format",
-            )
-            if key in request
-        }
-        # extra_body carries the chat-template settings; the OpenAI SDK
-        # merges it into the top level, and so does the raw POST body.
-        body.update(request.get("extra_body") or {})
-
-        last_error: str | None = None
-        for attempt in range(1, INFERENCE_MAX_RETRIES + 2):
-            started = time.monotonic()
-            try:
-                response = self._http_post(
-                    url,
-                    json=body,
-                    headers=proxy_auth_headers(),
-                    timeout=settings.exam_request_timeout_seconds,
-                )
-            except httpx.HTTPError as exc:
-                last_error = str(exc)
-                if attempt <= INFERENCE_MAX_RETRIES:
-                    self._sleep(INFERENCE_RETRY_DELAY_SECONDS * attempt)
-                continue
-            latency = time.monotonic() - started
-
-            if response.status_code == 200:
-                return self._extract(profile, response, latency)
-            excerpt = response.text[:EVIDENCE_BODY_EXCERPT_CHARS]
-            if response.status_code in RETRYABLE_STATUS_CODES:
-                last_error = f"HTTP {response.status_code}: {excerpt}"
-                if attempt <= INFERENCE_MAX_RETRIES:
-                    self._sleep(INFERENCE_RETRY_DELAY_SECONDS * attempt)
-                continue
-            if response.status_code in CANDIDATE_REJECTION_STATUS_CODES:
-                raise CandidateDeployError(
-                    CandidateDeployFailure(
-                        hf_repo=profile.hf_repo,
-                        revision=profile.revision or "",
-                        profile_hash=profile.content_hash(),
-                        stage="serve",
-                        detail=(
-                            f"Endpoint rejected the frozen request with HTTP "
-                            f"{response.status_code}: {excerpt}"
-                        ),
-                    )
-                )
-            raise InfrastructureError(
-                f"Inference request returned HTTP {response.status_code}: {excerpt}"
-            )
-
-        raise InfrastructureError(
-            f"Inference request failed after retries: {last_error}"
-        )
-
-    def _extract(
-        self, profile: RuntimeProfile, response: httpx.Response, latency: float
-    ) -> InferenceResult:
-        """The production client boundary: only the message content survives."""
-        try:
-            payload = response.json()
-            choices = payload.get("choices") or []
-            content = choices[0]["message"]["content"] if choices else None
-        except (ValueError, KeyError, IndexError, TypeError):
-            content = None
-        if not isinstance(content, str):
-            raise CandidateDeployError(
-                CandidateDeployFailure(
-                    hf_repo=profile.hf_repo,
-                    revision=profile.revision or "",
-                    profile_hash=profile.content_hash(),
-                    stage="serve",
-                    detail=(
-                        "Endpoint returned a response without message content: "
-                        f"{response.text[:EVIDENCE_BODY_EXCERPT_CHARS]}"
-                    ),
-                )
-            )
-        usage = payload.get("usage") or {}
-        return InferenceResult(
-            content=content,
-            latency_seconds=latency,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
+        return run_inference(
+            profile,
+            endpoint_url,
+            request,
+            http_post=self._http_post,
+            sleep=self._sleep,
         )
 
     # -- persistence ------------------------------------------------------------
@@ -487,10 +402,116 @@ def get_run_outputs(connection, run_id: int) -> list[dict[str, Any]]:
     return outputs
 
 
+def run_inference(
+    profile: RuntimeProfile,
+    endpoint_url: str,
+    request: dict[str, Any],
+    *,
+    http_post: Callable[..., httpx.Response],
+    sleep: Callable[[float], None],
+) -> InferenceResult:
+    """One inference through the production scoring pattern, shared by the
+    exam and grading engines: retries on transport and transient statuses,
+    a deterministic rejection is the model's own serve failure."""
+    url = f"{endpoint_url.rstrip('/')}{CHAT_COMPLETIONS_PATH}"
+    body = {
+        key: request[key]
+        for key in (
+            "model",
+            "messages",
+            "temperature",
+            "max_tokens",
+            "response_format",
+        )
+        if key in request
+    }
+    # extra_body carries the chat-template settings; the OpenAI SDK
+    # merges it into the top level, and so does the raw POST body.
+    body.update(request.get("extra_body") or {})
+
+    last_error: str | None = None
+    for attempt in range(1, INFERENCE_MAX_RETRIES + 2):
+        started = time.monotonic()
+        try:
+            response = http_post(
+                url,
+                json=body,
+                headers=proxy_auth_headers(),
+                timeout=settings.exam_request_timeout_seconds,
+            )
+        except httpx.HTTPError as exc:
+            last_error = str(exc)
+            if attempt <= INFERENCE_MAX_RETRIES:
+                sleep(INFERENCE_RETRY_DELAY_SECONDS * attempt)
+            continue
+        latency = time.monotonic() - started
+
+        if response.status_code == 200:
+            return extract_content(profile, response, latency)
+        excerpt = response.text[:EVIDENCE_BODY_EXCERPT_CHARS]
+        if response.status_code in RETRYABLE_STATUS_CODES:
+            last_error = f"HTTP {response.status_code}: {excerpt}"
+            if attempt <= INFERENCE_MAX_RETRIES:
+                sleep(INFERENCE_RETRY_DELAY_SECONDS * attempt)
+            continue
+        if response.status_code in CANDIDATE_REJECTION_STATUS_CODES:
+            raise CandidateDeployError(
+                CandidateDeployFailure(
+                    hf_repo=profile.hf_repo,
+                    revision=profile.revision or "",
+                    profile_hash=profile.content_hash(),
+                    stage="serve",
+                    detail=(
+                        f"Endpoint rejected the frozen request with HTTP "
+                        f"{response.status_code}: {excerpt}"
+                    ),
+                )
+            )
+        raise InfrastructureError(
+            f"Inference request returned HTTP {response.status_code}: {excerpt}"
+        )
+
+    raise InfrastructureError(
+        f"Inference request failed after retries: {last_error}"
+    )
+
+
+def extract_content(
+    profile: RuntimeProfile, response: httpx.Response, latency: float
+) -> InferenceResult:
+    """The production client boundary: only the message content survives."""
+    try:
+        payload = response.json()
+        choices = payload.get("choices") or []
+        content = choices[0]["message"]["content"] if choices else None
+    except (ValueError, KeyError, IndexError, TypeError):
+        content = None
+    if not isinstance(content, str):
+        raise CandidateDeployError(
+            CandidateDeployFailure(
+                hf_repo=profile.hf_repo,
+                revision=profile.revision or "",
+                profile_hash=profile.content_hash(),
+                stage="serve",
+                detail=(
+                    "Endpoint returned a response without message content: "
+                    f"{response.text[:EVIDENCE_BODY_EXCERPT_CHARS]}"
+                ),
+            )
+        )
+    usage = payload.get("usage") or {}
+    return InferenceResult(
+        content=content,
+        latency_seconds=latency,
+        prompt_tokens=usage.get("prompt_tokens"),
+        completion_tokens=usage.get("completion_tokens"),
+    )
+
+
 _shared_client: httpx.Client | None = None
 
 
-def _http_post(url: str, **kwargs) -> httpx.Response:
+def default_http_post(url: str, **kwargs) -> httpx.Response:
     """One shared client, no redirects — a POST must never degrade to GET."""
     global _shared_client
     if _shared_client is None:

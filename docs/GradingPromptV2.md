@@ -109,4 +109,7 @@ production scoring's 16384.
 Like v1, v2 is expected to evolve v2-vN from defects noticed in real
 governance rounds, devnet first. The v1 live-trial evidence does not
 transfer: trials against the pool's pinned judges must be re-run on
-the v2 contract before the prompt is used in a live round.
+the v2 contract before the prompt is used in a live round. The first
+live exercise of the v2 contract is recorded in
+`docs/GradingLiveValidation.md` (one pool judge, the two-item
+fragment, three repeats, end-to-end grades).
