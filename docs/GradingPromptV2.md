@@ -7,8 +7,8 @@ being examiner and accountant in one, and becomes only the examiner.
 Its output is a set of structured defect objects under the judge
 defect schema (`governance_service/services/grading.py`); every
 mechanically decidable check moves to the mechanical grading checker
-(G.4.4), and the grade itself is computed by the versioned grade
-formula (G.4.5). The judge never emits a number.
+(G.4.3), and the grade itself is computed by the versioned grade
+formula (G.4.4). The judge never emits a number.
 
 ## Why the split
 
@@ -26,7 +26,8 @@ to what only language understanding can decide.
 
 ## The division of labor
 
-Checker-owned (never asked of the judge): identical-evidence
+Checker-owned (never asked of the judge; shipped as
+`governance_service/services/checker.py`, G.4.3): identical-evidence
 sub-score divergence, ordering violations, the scoring-prompt
 version's numeric rules (ceilings, banding, required penalties), and
 structural failures (missing or invented validator entries). The

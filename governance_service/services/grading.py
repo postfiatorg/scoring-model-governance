@@ -14,8 +14,8 @@ split by markers). Under the G.4 checker/judge/formula split the judge
 owns only the language checks: its output is a set of structured defect
 objects validated here — the judge defect schema (G.4.2) — with no
 grade, no counts, and no severity anywhere in it. The mechanical
-grading checker (G.4.4) owns every defect kind with a closed-form right
-answer, and the grade formula (G.4.5) computes grades from the two
+grading checker (G.4.3) owns every defect kind with a closed-form right
+answer, and the grade formula (G.4.4) computes grades from the two
 defect lists.
 """
 

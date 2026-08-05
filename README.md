@@ -69,6 +69,7 @@ governance_service/
 ├── request_template.json # Verbatim production model request (testnet round 15),
 │                        # the structural template for constructed edge cases
 ├── _exam_modal_app.py   # Templated Modal app one exam candidate deploys as
+├── scoring_rules.yaml   # Curated per-scoring-prompt-version checker rules
 ├── api/
 │   ├── _helpers.py      # Admin auth and refresh-lock preconditions
 │   ├── health.py        # /health liveness endpoint
@@ -100,7 +101,8 @@ governance_service/
     ├── runtime_manager.py # Per-candidate Modal deployment lifecycle
     ├── exam_engine.py   # Exam execution: the corpus, three runs per item
     ├── disqualification.py # Mechanical pass/fail verdicts over stored runs
-    └── grading.py       # Grading request derivation + judge defect schema
+    ├── grading.py       # Grading request derivation + judge defect schema
+    └── checker.py       # Mechanical grading checker: closed-form defects
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -330,8 +332,8 @@ never this layer.
 
 Grading follows the G.4 checker/judge/formula split: every check with
 a closed-form right answer belongs to the mechanical grading checker
-(G.4.4), the per-item grade is computed by the versioned grade
-formula (G.4.5), and the drawn judge owns only the language checks.
+(G.4.3), the per-item grade is computed by the versioned grade
+formula (G.4.4), and the drawn judge owns only the language checks.
 `prompts/grading_v2.txt` is the current versioned grading prompt: the
 judge-independent instrument a drawn judge examines exam answers
 with, one (corpus item, survivor) pair per request. The judge
@@ -345,7 +347,7 @@ contradicting evidence, with every section stating an explicit
 outcome — no grade, no counts, no severity. `parse_judge_output`
 enforces the schema strictly, and repeat runs will be compared with
 the same canonical content-hash rule the exam pipeline uses
-(deterministic judge execution, G.4.3).
+(deterministic judge execution, G.4.5).
 
 The v1 prompt (retained as `prompts/grading_v1.txt`) was shaped by
 live grading trials on real frozen-round material and emitted banded
@@ -355,6 +357,30 @@ prompt's path — defects noticed in real rounds drive each revision,
 devnet first. Design rationale: `docs/GradingPromptV2.md` (current),
 `docs/GradingPromptV1.md` (v1 history and the clarity revision that
 drove the split).
+
+## Mechanical grading checker (G.4.3)
+
+`services/checker.py` is the split's code half: pure, deterministic
+defect detection over one (corpus item, parsed answer) pair —
+identical-evidence sub-score divergence per dimension, ordering
+violations where strictly better evidence scored strictly worse (ties
+excused exactly where an era rule forces them), the era's numeric
+rules (the worst-window consensus ceiling, multiples-of-5 banding),
+and the structural checks (missing or invented validator entries).
+Checker defects mirror the judge defect objects' shape with
+checker-exclusive kinds, so the grade formula concatenates the two
+lists without reconciliation.
+
+Because grading is instruction-relative and the corpus spans
+scoring-prompt eras, each item's rules come from
+`governance_service/scoring_rules.yaml` — one hand-curated row per
+published scoring-prompt version, keyed by the SHA-256 of the exact
+instructions text embedded in the frozen request, and fail-closed:
+unknown instructions and mis-curated evidence fields are hard errors,
+never guesses. The Vendor Freshness workflow verifies every row's
+pinned hash against the upstream prompt file, and the v5 row is
+validated against the vendored real production request in the test
+suite. Curation rationale per row: `docs/MechanicalGradingChecker.md`.
 
 ## CI
 

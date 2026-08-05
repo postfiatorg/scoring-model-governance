@@ -32,7 +32,7 @@ receives three material blocks, delimited and declared as material only:
    candidate's identity, so no grading request can carry it. The judge
    grades content, never authorship. Grades are absolute against the
    rubric — not comparisons within a pool — which keeps them comparable
-   across rounds and keeps the offline re-grading tool (G.4.3)
+   across rounds and keeps the offline re-grading tool (G.4.5)
    meaningful.
 
 The request runs under the same discipline as every governance
@@ -81,7 +81,7 @@ Per-item banding follows the scoring prompt v9 stability evidence
 (`dynamic-unl-scoring/docs/ScoringPromptV9.md`): fine-grained per-item
 precision is noise no model can justify.
 One-decimal final grades arise in code, from the mean over corpus items
-(the grade formula, G.4.5 after the G.4 restructure) — the judge itself
+(the grade formula, G.4.4 after the G.4 restructure) — the judge itself
 never emits decimals.
 
 ## Development notes

@@ -1,0 +1,74 @@
+# Per-scoring-prompt-version rules for the mechanical grading checker.
+#
+# One row per published scoring-prompt version, keyed by the SHA-256 of
+# the exact scoring-instructions text embedded in a frozen request (the
+# rendered system section of dynamic-unl-scoring's prompts/scoring_vN.txt).
+# Era resolution is fail-closed: a corpus item whose instructions match
+# no row is a hard error, never a guess.
+#
+# Curation is instruction-relative and deliberately conservative: a row
+# enables only checks the version's own text states crisply. Prose rules
+# (guide bands, "where appropriate" penalties, judgment latitude) never
+# enter a row — they are the judge's to weigh. The rationale for every
+# inclusion and exclusion is docs/MechanicalGradingChecker.md; treat a
+# row change like a prompt change, reviewed line by line.
+#
+# Rows exist for the versions the exam corpus can currently contain: v5
+# (the constructed edge-case catalogue's template, verified against the
+# vendored production request from testnet round 15) and the current-era
+# v8 and v9. A historical corpus item on another version fail-closes
+# with the missing row named; curating that row is the fix.
+
+v5:
+  # v5 states no equality, ordering, ceiling, or banding rule — its
+  # dimension guidance is prose. Only the structural checks apply.
+  instructions_sha256: e9c4e537a75e6f102c6d15ed51b2879731364a528a90847387cbc2906af302f2
+  equality: {}
+  ordering: {}
+  consensus_ceiling: none
+  multiples_of_5: []
+
+v8:
+  # v8 states the general within-dimension identical/strictly-better
+  # rule (same sentence as v9), consensus-specific equality and strict
+  # ordering on agreement evidence, and diversity equality/ordering by
+  # observable endpoint concentration (peers sharing the validator's
+  # country and AS name). Its software and identity dimension texts are
+  # byte-identical to v9's, so their equality rows carry over.
+  # Reliability still mixes accountability prose ("where appropriate")
+  # and never enumerates its evidence, so it stays judge-owned; no
+  # ceiling, no banding.
+  instructions_sha256: 29da7ced485963526655218bbb508fd746eac12c6289042de71a6d3acada2252
+  equality:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    software: [server_version, base_fee]
+    diversity: [country_peer_count, asn_peer_count]
+    identity: [domain, domain_verified, identity]
+  ordering:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    diversity: [country_peer_count, asn_peer_count]
+  consensus_ceiling: none
+  multiples_of_5: []
+
+v9:
+  # v9 adds the worst-window consensus ceiling (whole number, floored),
+  # multiples-of-5 banding on the four non-consensus dimensions,
+  # operational-evidence-only reliability with an explicit identity
+  # rule, concentration-block diversity (counts supplied, "unknown"
+  # family = unresolved endpoint), and the general within-dimension
+  # identical/strictly-better rule. Software and identity ordering stay
+  # out: version recency and accountability comparisons are hedged
+  # prose, not closed-form.
+  instructions_sha256: 088e403cffb3fb82000427b1a73331553e0bc399938ea416c7745aba91a19575
+  equality:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    software: [server_version, base_fee]
+    diversity: [concentration_country_count, concentration_family_count]
+    identity: [domain, domain_verified, identity]
+  ordering:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    diversity: [concentration_country_count, concentration_family_count]
+  consensus_ceiling: worst_window_floor
+  multiples_of_5: [reliability, software, diversity, identity]
