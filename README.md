@@ -71,9 +71,10 @@ governance_service/
 ├── _exam_modal_app.py   # Templated Modal app one exam candidate deploys as
 ├── scoring_rules.yaml   # Curated per-scoring-prompt-version checker rules
 ├── api/
-│   ├── _helpers.py      # Admin auth and refresh-lock preconditions
+│   ├── _helpers.py      # Admin auth and advisory-lock preconditions
 │   ├── health.py        # /health liveness endpoint
-│   └── pool.py          # Public pool/refresh/blocklist/health reads + refresh trigger
+│   ├── pool.py          # Public pool/refresh/blocklist/health reads + refresh trigger
+│   └── rounds.py        # Admin-guarded manual round trigger
 ├── clients/
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
 │   ├── huggingface.py   # Revision pinning, weight sizes, config, license/gating
@@ -105,7 +106,9 @@ governance_service/
     ├── checker.py       # Mechanical grading checker: closed-form defects
     ├── grade_formula.py # Versioned formula: defect lists -> grades
     ├── grading_engine.py # Judge execution: pairs, repeats, verdicts
-    └── regrading.py     # Offline chain: frozen material -> grades
+    ├── regrading.py     # Offline chain: frozen material -> grades
+    ├── orchestrator.py  # Governance round state machine + stage pipeline
+    └── scheduler.py     # Round cadence scheduler + advisory locking
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -431,6 +434,57 @@ carries receipts (the aggregated defects, classifications, counts,
 and band decision), and the thresholds are named, versioned
 constants: changing one is a new formula version. Design and
 constants rationale: `docs/GradeFormulaV1.md`.
+
+## Round state machine and scheduler (G.5.1)
+
+`services/orchestrator.py` is the persisted state machine that will drive
+complete governance rounds. A round lives in `governance_rounds`
+(migration 008) and moves through completion-boundary states — `CREATED`,
+`FROZEN`, `ANNOUNCED`, `JUDGE_DRAWN`, `EXAMINED`, `GRADED`,
+`AWAITING_COMMIT_CLOSE`, `DECIDED` — to `COMPLETE`, `FAILED`, or
+`ABANDONED`. Restart semantics follow the methodology's freeze contract:
+a round interrupted before its freeze completed published nothing and is
+abandoned by startup cleanup, while any post-freeze round resumes from
+its persisted state, because frozen inputs are content-pinned and the
+exam and grading engines resume idempotently — a governance exam is hours
+of GPU work and is never discarded on a service restart. A parked round
+(`AWAITING_COMMIT_CLOSE`) is released only once its recorded
+`commit_closes_at` has passed — the fail-closed output-withholding hold.
+Rounds never overlap: a new round starts only when no round is active.
+The stage handlers themselves land with the remaining G.5 steps; until a
+stage exists, a triggered round fails explicitly with a
+`StageNotImplemented` message naming the milestone that delivers it. Exam
+and grading runs carry a nullable `round_id` linking them to the
+governance round that paid for them; runs reused across rounds keep the
+round that produced them.
+
+`services/scheduler.py` adapts the scoring service's scheduler
+discipline: the persisted `governance_round_schedule.next_due_at`
+advances by whole cadence periods at scheduled round start (a failed
+round consumes its slot — the manual trigger is the recovery path), a
+PostgreSQL advisory lock (99201) prevents concurrent rounds, and every
+tick also abandons interrupted pre-freeze rounds, resumes interrupted
+post-freeze rounds, and publishes parked rounds whose commit window
+closed. Unlike the scoring scheduler, a fresh install seeds the first
+round one cadence out instead of firing immediately — the first round of
+a new environment should be a deliberate admin trigger. Cadence and
+timing come from `ROUND_CADENCE_DAYS` (default 30),
+`SCHEDULER_CHECK_INTERVAL_SECONDS` (300), and
+`SCHEDULER_STARTUP_DELAY_SECONDS` (300).
+
+A round is triggered manually with an explicit schedule choice —
+`reanchor=true` resets the next automated round to one cadence from now,
+`reanchor=false` leaves the schedule untouched:
+
+```bash
+curl -X POST "http://localhost:8002/api/governance/rounds/trigger?reanchor=true" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+The endpoint mirrors the dynamic-unl-scoring trigger contract: 202 when
+started, 400 without the `reanchor` choice, 409 while a round holds the
+advisory lock or an earlier round is still active, 403 when
+`ADMIN_API_KEY` is unset or wrong.
 
 ## CI
 

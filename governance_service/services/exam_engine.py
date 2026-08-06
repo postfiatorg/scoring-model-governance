@@ -169,6 +169,7 @@ class ExamEngine:
         items: list[ExamItem],
         *,
         repeats: int = REPEAT_COUNT,
+        round_id: int | None = None,
     ) -> list[int]:
         """Examine every candidate sequentially; returns the run ids.
 
@@ -179,6 +180,9 @@ class ExamEngine:
         structured evidence and the exam moves on; an infrastructure
         failure marks the current run FAILED and re-raises — the caller
         retries the whole operation once the platform recovers.
+
+        A round_id links the runs to their governance round; a reused
+        terminal run keeps whatever round produced it.
         """
         for profile in profiles:
             validate_deployable(profile)
@@ -187,7 +191,7 @@ class ExamEngine:
         run_ids = []
         for profile in profiles:
             run_id, already_complete = self._get_or_resume_run(
-                connection, profile, corpus_hash
+                connection, profile, corpus_hash, round_id
             )
             run_ids.append(run_id)
             if already_complete:
@@ -250,7 +254,11 @@ class ExamEngine:
     # -- persistence ------------------------------------------------------------
 
     def _get_or_resume_run(
-        self, connection, profile: RuntimeProfile, corpus_hash: str
+        self,
+        connection,
+        profile: RuntimeProfile,
+        corpus_hash: str,
+        round_id: int | None = None,
     ) -> tuple[int, bool]:
         """(run id, already-terminal) for this profile and corpus.
 
@@ -278,10 +286,11 @@ class ExamEngine:
             cursor.execute(
                 """
                 UPDATE exam_runs
-                SET status = %s, error_message = NULL, completed_at = NULL
+                SET status = %s, error_message = NULL, completed_at = NULL,
+                    round_id = COALESCE(round_id, %s)
                 WHERE id = %s
                 """,
-                (RUN_RUNNING, run_id),
+                (RUN_RUNNING, round_id, run_id),
             )
             cursor.close()
             connection.commit()
@@ -289,8 +298,8 @@ class ExamEngine:
 
         cursor.execute(
             """
-            INSERT INTO exam_runs (hf_repo, revision, profile_hash, corpus_hash, status)
-            VALUES (%s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO exam_runs (hf_repo, revision, profile_hash, corpus_hash, status, round_id)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
             """,
             (
                 profile.hf_repo,
@@ -298,6 +307,7 @@ class ExamEngine:
                 profile.content_hash(),
                 corpus_hash,
                 RUN_RUNNING,
+                round_id,
             ),
         )
         run_id = cursor.fetchone()[0]

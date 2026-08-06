@@ -123,6 +123,7 @@ class GradingEngine:
         pairs: list[GradingPair],
         *,
         repeats: int = REPEAT_COUNT,
+        round_id: int | None = None,
     ) -> int:
         """Grade every pair with this judge; returns the run id.
 
@@ -133,6 +134,9 @@ class GradingEngine:
         run JUDGE_FAILED with the structured evidence; an infrastructure
         failure marks it FAILED and re-raises for the caller to retry
         once the platform recovers.
+
+        A round_id links the run to its governance round; a reused
+        terminal run keeps whatever round produced it.
         """
         if not pairs:
             raise ValueError("Grading requires at least one pair")
@@ -143,7 +147,7 @@ class GradingEngine:
             )
         validate_deployable(judge)
         run_id, already_terminal = self._get_or_resume_run(
-            connection, judge, material_hash(pairs)
+            connection, judge, material_hash(pairs), round_id
         )
         if already_terminal:
             logger.info(
@@ -193,7 +197,11 @@ class GradingEngine:
     # -- persistence ---------------------------------------------------------
 
     def _get_or_resume_run(
-        self, connection, judge: RuntimeProfile, material: str
+        self,
+        connection,
+        judge: RuntimeProfile,
+        material: str,
+        round_id: int | None = None,
     ) -> tuple[int, bool]:
         cursor = connection.cursor()
         cursor.execute(
@@ -213,10 +221,11 @@ class GradingEngine:
             cursor.execute(
                 """
                 UPDATE grading_runs
-                SET status = %s, error_message = NULL, completed_at = NULL
+                SET status = %s, error_message = NULL, completed_at = NULL,
+                    round_id = COALESCE(round_id, %s)
                 WHERE id = %s
                 """,
-                (RUN_RUNNING, run_id),
+                (RUN_RUNNING, round_id, run_id),
             )
             cursor.close()
             connection.commit()
@@ -224,8 +233,8 @@ class GradingEngine:
 
         cursor.execute(
             """
-            INSERT INTO grading_runs (hf_repo, revision, profile_hash, material_hash, status)
-            VALUES (%s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO grading_runs (hf_repo, revision, profile_hash, material_hash, status, round_id)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
             """,
             (
                 judge.hf_repo,
@@ -233,6 +242,7 @@ class GradingEngine:
                 judge.content_hash(),
                 material,
                 RUN_RUNNING,
+                round_id,
             ),
         )
         run_id = cursor.fetchone()[0]

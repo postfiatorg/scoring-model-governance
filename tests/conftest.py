@@ -29,31 +29,29 @@ def client():
         yield c
 
 
-@pytest.fixture()
-def db():
-    """A clean database connection; refresh tables are wiped around each test."""
-    init_db_if_needed()
-    connection = get_db()
+def _wipe_tables(connection) -> None:
     cursor = connection.cursor()
     cursor.execute("DELETE FROM grading_outputs")
     cursor.execute("DELETE FROM grading_runs")
     cursor.execute("DELETE FROM exam_outputs")
     cursor.execute("DELETE FROM exam_runs")
+    cursor.execute("DELETE FROM governance_rounds")
+    cursor.execute("DELETE FROM governance_round_schedule")
     cursor.execute("DELETE FROM pool_refresh_candidates")
     cursor.execute("DELETE FROM pool_refreshes")
     cursor.execute("DELETE FROM blocklist")
     connection.commit()
+
+
+@pytest.fixture()
+def db():
+    """A clean database connection; service tables are wiped around each test."""
+    init_db_if_needed()
+    connection = get_db()
+    _wipe_tables(connection)
 
     yield connection
 
     connection.rollback()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM grading_outputs")
-    cursor.execute("DELETE FROM grading_runs")
-    cursor.execute("DELETE FROM exam_outputs")
-    cursor.execute("DELETE FROM exam_runs")
-    cursor.execute("DELETE FROM pool_refresh_candidates")
-    cursor.execute("DELETE FROM pool_refreshes")
-    cursor.execute("DELETE FROM blocklist")
-    connection.commit()
+    _wipe_tables(connection)
     connection.close()

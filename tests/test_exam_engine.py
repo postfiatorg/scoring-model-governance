@@ -380,3 +380,57 @@ def test_load_exam_items_rejects_missing_request_entry():
     with _corpus_client(bundle, files) as client:
         with pytest.raises(corpus.CorpusVerificationError, match="no inputs/model_request"):
             load_exam_items(client, result)
+
+
+# -- governance round linkage ------------------------------------------------
+
+
+def _governance_round(db, round_number: int = 1) -> int:
+    cursor = db.cursor()
+    cursor.execute(
+        """
+        INSERT INTO governance_rounds (round_number, status, trigger_source)
+        VALUES (%s, 'JUDGE_DRAWN', 'scheduled')
+        RETURNING id
+        """,
+        (round_number,),
+    )
+    round_id = cursor.fetchone()[0]
+    db.commit()
+    cursor.close()
+    return round_id
+
+
+def _run_round_id(db, run_id: int) -> int | None:
+    cursor = db.cursor()
+    cursor.execute("SELECT round_id FROM exam_runs WHERE id = %s", (run_id,))
+    round_id = cursor.fetchone()[0]
+    cursor.close()
+    return round_id
+
+
+def test_round_link_is_recorded_and_terminal_runs_keep_theirs(db):
+    round_id = _governance_round(db)
+    run_ids = _engine(StubRuntime(), FakeEndpoint()).examine(
+        db, [INCUMBENT], ITEMS, round_id=round_id
+    )
+    assert _run_round_id(db, run_ids[0]) == round_id
+
+    other_round = _governance_round(db, round_number=2)
+    reused = _engine(StubRuntime(), FakeEndpoint()).examine(
+        db, [INCUMBENT], ITEMS, round_id=other_round
+    )
+    assert reused == run_ids
+    assert _run_round_id(db, run_ids[0]) == round_id
+
+
+def test_round_link_backfills_when_a_run_resumes(db):
+    failing = FakeEndpoint(fail_from_call=3)
+    with pytest.raises(InfrastructureError):
+        _engine(StubRuntime(), failing).examine(db, [INCUMBENT], ITEMS)
+
+    round_id = _governance_round(db)
+    run_ids = _engine(StubRuntime(), FakeEndpoint()).examine(
+        db, [INCUMBENT], ITEMS, round_id=round_id
+    )
+    assert _run_round_id(db, run_ids[0]) == round_id

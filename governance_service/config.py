@@ -88,6 +88,23 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Round orchestration
+    # -------------------------------------------------------------------------
+    round_cadence_days: float = Field(
+        default=30,
+        description="Days between governance rounds (30 = monthly)",
+    )
+    scheduler_check_interval_seconds: int = Field(
+        default=300,
+        description="How often the scheduler checks if a round is due "
+        "(300 = every 5 minutes)",
+    )
+    scheduler_startup_delay_seconds: int = Field(
+        default=300,
+        description="Seconds to wait after service boot before first schedule check",
+    )
+
+    # -------------------------------------------------------------------------
     # Incumbent
     # -------------------------------------------------------------------------
     incumbent_hf_repo: str = Field(
