@@ -108,7 +108,8 @@ governance_service/
     ├── grading_engine.py # Judge execution: pairs, repeats, verdicts
     ├── regrading.py     # Offline chain: frozen material -> grades
     ├── orchestrator.py  # Governance round state machine + stage pipeline
-    └── scheduler.py     # Round cadence scheduler + advisory locking
+    ├── scheduler.py     # Round cadence scheduler + advisory locking
+    └── round_package.py # Frozen round package: assembly, pinning, persistence
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -485,6 +486,40 @@ The endpoint mirrors the dynamic-unl-scoring trigger contract: 202 when
 started, 400 without the `reanchor` choice, 409 while a round holds the
 advisory lock or an earlier round is still active, 403 when
 `ADMIN_API_KEY` is unset or wrong.
+
+## Freeze and IPFS publication (G.5.2)
+
+`services/round_package.py` is the freeze stage — the moment a round
+becomes tamper-proof. It loads the maintained pool from the newest
+completed refresh and maps every member to its deployable runtime
+profile, enforcing the methodology's eligibility rule (the incumbent plus
+at least two challengers, with matching revision pins) — an ineligible
+pool fails the round with the evidence recorded. It then assembles the
+frozen package: the corpus manifest (historical rounds by their existing
+`input_package_cid`s, never re-pinned) and the constructed edge cases
+pinned fresh, the pool pins with full runtime profiles, the grading
+artifacts (grading prompt v2, the judge defect schema, the checker rules
+table, grade formula v1 constants), the adaptation rule (versioned as
+`ADAPTATION_RULE_VERSION`), and the round parameters — repeat count,
+incumbent margin, commit/reveal window durations
+(`ROUND_COMMIT_WINDOW_SECONDS` / `ROUND_REVEAL_WINDOW_SECONDS`,
+conservative defaults finalized at the pre-round rehearsal), the
+judge-draw procedure specification implemented at G.5.4, and the hash-set
+contract implemented at G.6. The announcement formats join the package at
+G.5.3 with the governance memo types.
+
+The package follows the scoring input-package convention: `bundle.json`
+carries `package_kind: "governance_round"` and per-file canonical
+sha256es, and the package hash is the canonical hash of the bundle —
+verifiers check it exactly the way they check scoring input packages.
+Publication reuses the pin-with-fallback contract (foundation IPFS node,
+Pinata replication by CID, Pinata direct upload as the write fallback)
+and fails closed when no backend succeeds. Every package file is
+persisted to `governance_round_artifacts` (migration 009) and served over
+HTTPS at `GET /api/governance/rounds/{round}/package` (the bundle) and
+`GET /api/governance/rounds/{round}/package/{path}` — the
+gateway-independent side of the fetch-with-IPFS-fallback contract
+sidecars use.
 
 ## CI
 

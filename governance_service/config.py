@@ -103,6 +103,16 @@ class Settings(BaseSettings):
         default=300,
         description="Seconds to wait after service boot before first schedule check",
     )
+    round_commit_window_seconds: int = Field(
+        default=172800,
+        description="Commit window duration frozen into the round package; "
+        "sized for sidecar full-exam re-execution (48 h), finalized at the "
+        "pre-round rehearsal",
+    )
+    round_reveal_window_seconds: int = Field(
+        default=86400,
+        description="Reveal window duration frozen into the round package (24 h)",
+    )
 
     # -------------------------------------------------------------------------
     # Incumbent

@@ -1,13 +1,13 @@
 """Governance round orchestrator — the persisted state machine for a round.
 
-G.5.1 delivers the lifecycle backbone: the round states, their restart
-classification, the persistence helpers, and the stage pipeline that the
-remaining G.5 steps fill in with real behavior (G.5.2 freeze, G.5.3
-announcement, G.5.4 judge draw, G.5.5 withholding and final publication,
-G.5.6 decision, with the G.3 exam and G.4 grading engines wired into their
-stages along the way). A stage that is not built yet raises
-StageNotImplemented, so a prematurely triggered round fails explicitly
-instead of faking progress.
+G.5.1 delivered the lifecycle backbone: the round states, their restart
+classification, the persistence helpers, and the stage pipeline the G.5
+steps fill in with real behavior. The freeze stage is real (G.5.2,
+``round_package``); the remaining stages (G.5.3 announcement, G.5.4 judge
+draw, G.5.5 withholding and final publication, G.5.6 decision, with the
+G.3 exam and G.4 grading engines wired in along the way) raise
+StageNotImplemented until their step lands, so a prematurely triggered
+round fails explicitly instead of faking progress.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any
 
 from governance_service.database import get_db
+from governance_service.services import round_package
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,9 @@ def _update_round(conn, round_id: int, **fields) -> None:
 
 def _fail_round(conn, round_id: int, error: str) -> None:
     logger.error("Governance round %d failed: %s", round_id, error)
+    # The failed stage may have aborted the transaction; without this the
+    # failure UPDATE itself would raise and strand the round mid-state.
+    conn.rollback()
     _update_round(
         conn,
         round_id,
@@ -368,7 +372,7 @@ class RoundOrchestrator:
     # and its status write re-enters the same handler on resume.
 
     def _freeze(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("freeze", "G.5.2")
+        round_package.freeze_round(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _announce(self, conn, round_ctx) -> None:
         raise StageNotImplemented("announcement", "G.5.3")

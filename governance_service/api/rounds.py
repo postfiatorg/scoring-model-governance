@@ -1,8 +1,8 @@
-"""Round endpoints — the admin-guarded manual round trigger.
+"""Round endpoints — the manual round trigger and the package fetch path.
 
-The full rounds API (round list and detail, artifact fallback routes, the
-sidecar config endpoint) arrives with G.5.7; this module starts with the
-G.5.1 trigger surface.
+The package routes are the HTTPS side of the methodology's fetch contract:
+verifiers fetch over HTTPS with IPFS as the fallback. The full rounds API
+(round list and detail, the sidecar config endpoint) arrives with G.5.7.
 """
 
 import logging
@@ -23,11 +23,41 @@ from governance_service.services.orchestrator import (
     cleanup_interrupted_rounds,
     get_active_round,
 )
+from governance_service.services.round_package import BUNDLE_FILE_PATH, get_package_file
 from governance_service.services.scheduler import reanchor_schedule
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/governance")
+
+
+@router.get("/rounds/{round_number}/package")
+def get_round_package(round_number: int):
+    """The frozen package's bundle manifest — package kind, hashes, identity."""
+    return _package_file_response(round_number, BUNDLE_FILE_PATH)
+
+
+@router.get("/rounds/{round_number}/package/{file_path:path}")
+def get_round_package_file(round_number: int, file_path: str):
+    """One frozen package file, served from the persisted freeze."""
+    return _package_file_response(round_number, file_path)
+
+
+def _package_file_response(round_number: int, file_path: str):
+    conn = get_db()
+    try:
+        content = get_package_file(conn, round_number, file_path)
+    finally:
+        conn.close()
+
+    if content is None:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "error": f"No package file {file_path} for round {round_number}"
+            },
+        )
+    return JSONResponse(content=content)
 
 
 def _run_round_in_background(lock_conn) -> None:

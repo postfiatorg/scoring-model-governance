@@ -35,6 +35,7 @@ def _wipe_tables(connection) -> None:
     cursor.execute("DELETE FROM grading_runs")
     cursor.execute("DELETE FROM exam_outputs")
     cursor.execute("DELETE FROM exam_runs")
+    cursor.execute("DELETE FROM governance_round_artifacts")
     cursor.execute("DELETE FROM governance_rounds")
     cursor.execute("DELETE FROM governance_round_schedule")
     cursor.execute("DELETE FROM pool_refresh_candidates")

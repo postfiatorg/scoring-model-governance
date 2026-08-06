@@ -19,6 +19,7 @@ from governance_service.models.runtime_profile import RuntimeProfile
 # messages, temperature, max_tokens, response_format, method — is serving
 # discipline shared by every candidate and must survive byte-identically.
 ADAPTED_FIELDS = ("model", "extra_body")
+ADAPTATION_RULE_VERSION = 1
 
 
 class RequestAdaptationError(RuntimeError):
