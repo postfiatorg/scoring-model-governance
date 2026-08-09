@@ -436,6 +436,53 @@ and band decision), and the thresholds are named, versioned
 constants: changing one is a new formula version. Design and
 constants rationale: `docs/GradeFormulaV1.md`.
 
+## Strict final-grade parsing and stable commitments (G.4.2/G.4.4)
+
+The source boundary matters here. Roadmap
+[G.4.2](https://github.com/postfiatorg/dynamic-unl-scoring/blob/6ae228f36fa3653cb75977419652ede45c2d5792/docs/CurrentRoadmap.md#L2603-L2605)
+requires strict parsing and canonical hashing for judge defect output, while
+also requiring **no grade** in that output. Roadmap
+[G.4.4](https://github.com/postfiatorg/dynamic-unl-scoring/blob/6ae228f36fa3653cb75977419652ede45c2d5792/docs/CurrentRoadmap.md#L2610-L2612)
+and the canonical
+[methodology](https://github.com/postfiatorg/scoring-model-governance/blob/16a03572d7c52345d75285b44d2153748e6bcce3/docs/Methodology.md#L88-L94)
+place the final candidate grade in code and define it as 0-100 with one
+decimal. `services/grade_commitment.py` therefore validates and commits the
+**formula-produced final-grade record**; it does not broaden the judge schema.
+No consensus, quorum, veto, or replacement-margin path is involved.
+
+`parse_grade` accepts only canonical strings matching `0.0` through `100.0`
+with exactly one ASCII decimal digit. It returns `Decimal` and rejects JSON
+numbers/floats, integers, signs, exponents, whitespace, leading zeroes,
+additional decimals, non-ASCII digits, text, and out-of-range values.
+
+`canonical_grade_bytes` and `stable_grade_hash` define the byte contract:
+normalize candidate ids to Unicode NFC, reject empty or repeated ids, sort by
+candidate id, encode the grade as a string, wrap the rows in the versioned
+`postfiat.governance.candidate-grades.v1` domain, serialize compact sorted-key
+JSON without a trailing newline, then UTF-8 encode and SHA-256 hash it. The
+schema tag prevents this digest from being confused with another artifact and
+makes a future format change explicit.
+
+Known vector (the reverse input order produces the identical bytes and hash):
+
+```text
+input: [("model-z", "91.7"), ("model-a", "83.3")]
+bytes: {"grades":[["model-a","83.3"],["model-z","91.7"]],"schema":"postfiat.governance.candidate-grades.v1"}
+sha256: 4ee92c01a5772d23fa3d7df35dd83177042f4113cd821aea70c9090fcaec2c0c
+```
+
+Requirement mapping:
+
+| Requirement | Implementation | Proof |
+|---|---|---|
+| Only `0.0`-`100.0`, exactly one decimal | `parse_grade` in `governance_service/services/grade_commitment.py` | parser acceptance/rejection cases in `tests/test_grade_commitment.py` |
+| Rejected integers, extra decimals, ranges, text, and malformed values | fail-closed ASCII grammar with `GradeParseError` | parameterized invalid-input tests, including both boundaries |
+| Sorted, documented UTF-8 serialization of `(candidate_id, grade)` pairs | `canonical_grade_bytes` | exact known-byte test, Unicode NFC/UTF-8 test, malformed/duplicate-pair tests |
+| Order-independent SHA-256 | `stable_grade_hash` | opposite-order known-answer test and mutation-sensitivity tests |
+| Minimal runtime overhead | standard library only; one validation pass, one `O(n log n)` sort, one serialization, one hash | dependency-free unit suite |
+
+Run the focused suite with `pytest -q tests/test_grade_commitment.py`.
+
 ## Round state machine and scheduler (G.5.1)
 
 `services/orchestrator.py` is the persisted state machine that will drive
