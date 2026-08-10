@@ -241,6 +241,42 @@ class Settings(BaseSettings):
         description="Author and committer email on record commits",
     )
 
+    # -------------------------------------------------------------------------
+    # PFT Ledger memos (governance round announcements, G.5.3)
+    # -------------------------------------------------------------------------
+    pftl_rpc_url: str = Field(
+        default="",
+        description="PFT Ledger JSON-RPC URL. Round memo publication is "
+        "skipped when empty.",
+    )
+    pftl_wallet_secret: str = Field(
+        default="",
+        description="Publisher wallet secret (an s... seed or a hex private "
+        "key) used to sign round memo transactions. Never hardcoded.",
+    )
+    pftl_memo_destination: str = Field(
+        default="",
+        description="Destination classic (r...) address the 1-drop memo "
+        "payments are sent to",
+    )
+    pftl_network: str = Field(
+        default="devnet",
+        description="PFT Ledger network name (devnet, testnet, mainnet); "
+        "resolved to its numeric network_id via pftl_network_id",
+    )
+
+    @property
+    def pftl_network_id(self) -> int:
+        return {"devnet": 2024, "testnet": 2025, "mainnet": 2026}.get(
+            self.pftl_network, 2024
+        )
+
+    @property
+    def pftl_enabled(self) -> bool:
+        return bool(
+            self.pftl_rpc_url and self.pftl_wallet_secret and self.pftl_memo_destination
+        )
+
     @property
     def ipfs_enabled(self) -> bool:
         return bool(self.ipfs_api_url)
