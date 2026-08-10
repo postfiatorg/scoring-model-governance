@@ -3,11 +3,13 @@
 G.5.1 delivered the lifecycle backbone: the round states, their restart
 classification, the persistence helpers, and the stage pipeline the G.5
 steps fill in with real behavior. The freeze stage is real (G.5.2,
-``round_package``); the remaining stages (G.5.3 announcement, G.5.4 judge
-draw, G.5.5 withholding and final publication, G.5.6 decision, with the
-G.3 exam and G.4 grading engines wired in along the way) raise
-StageNotImplemented until their step lands, so a prematurely triggered
-round fails explicitly instead of faking progress.
+``round_package``); the announcement and final-publication stages are
+also real now (G.5.3, ``round_memo_publisher`` — best-effort on-chain
+memos that never block round progression). The remaining stages (G.5.4
+judge draw, G.5.5 withholding, G.5.6 decision, with the G.3 exam and G.4
+grading engines wired in along the way) still raise StageNotImplemented
+until their step lands, so a prematurely triggered round fails explicitly
+instead of faking progress.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -23,6 +25,7 @@ from typing import Any
 
 from governance_service.database import get_db
 from governance_service.services import round_package
+from governance_service.services.round_memo_publisher import RoundMemoPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +214,9 @@ def cleanup_interrupted_rounds(conn) -> int:
 class RoundOrchestrator:
     """Drives governance rounds through the stage pipelines."""
 
+    def __init__(self, memo_publisher: RoundMemoPublisher | None = None):
+        self._memo_publisher = memo_publisher or RoundMemoPublisher()
+
     def run_round(self, trigger_source: str) -> dict[str, Any]:
         """Start a new round and advance it until it parks, completes, or fails.
 
@@ -375,7 +381,16 @@ class RoundOrchestrator:
         round_package.freeze_round(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _announce(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("announcement", "G.5.3")
+        """Best-effort on-chain announcement memo for the just-frozen round.
+
+        A missing PFTL configuration or a ledger submission failure is
+        logged by the publisher and never raised — the frozen round's
+        package hash is already durably persisted, so a failed memo is a
+        visibility gap, not a correctness problem, and must not block the
+        round from advancing (per the task's "keep publishing outside
+        consensus, quorum, and veto checks" instruction).
+        """
+        self._memo_publisher.publish_round_frozen(conn, round_ctx["id"])
 
     def _draw_judge(self, conn, round_ctx) -> None:
         raise StageNotImplemented("judge draw", "G.5.4")
@@ -393,4 +408,10 @@ class RoundOrchestrator:
         raise StageNotImplemented("decision", "G.5.6")
 
     def _publish_record(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("final publication", "G.5.5")
+        """Best-effort on-chain completion receipt for the just-decided round.
+
+        Same best-effort contract as ``_announce``: a ledger outage or
+        missing configuration is logged and never raises, so the round
+        still reaches COMPLETE.
+        """
+        self._memo_publisher.publish_round_complete(conn, round_ctx["id"])
