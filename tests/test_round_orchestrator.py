@@ -1,6 +1,7 @@
 """Round state machine behavior against a real PostgreSQL database."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 from governance_service.services.orchestrator import (
     TRIGGER_MANUAL,
@@ -10,6 +11,7 @@ from governance_service.services.orchestrator import (
     cleanup_interrupted_rounds,
     get_active_round,
 )
+from governance_service.services.round_memo_publisher import RoundMemoPublisher
 
 
 def _insert_round(
@@ -127,11 +129,16 @@ class TestLifecycleProgression:
 
         result = _FreezeOnly().run_round(TRIGGER_SCHEDULED)
 
+        # _announce is real now (G.5.3) but best-effort: with no package_hash
+        # persisted (freeze was stubbed to a no-op above) and PFTL
+        # unconfigured in the test environment, it logs and moves on rather
+        # than raising, so the round still fails explicitly — one stage
+        # later, at the next genuinely unbuilt stage.
         assert result["status"] == RoundState.FAILED.value
         row = _round_row(db, result["round_id"])
         assert row["status"] == RoundState.FAILED.value
         assert "not implemented" in row["error_message"]
-        assert "announcement" in row["error_message"]
+        assert "judge draw" in row["error_message"]
         assert row["completed_at"] is not None
 
     def test_stage_failure_marks_round_failed_with_stage_prefix(self, db):
@@ -284,3 +291,56 @@ class TestWithheldPublication:
         assert len(results) == 1
         assert orchestrator.calls == ["publish_record"]
         assert _round_row(db, round_id)["status"] == RoundState.COMPLETE.value
+
+
+class TestMemoPublisherWiring:
+    """Proves _announce/_publish_record call the real memo publisher (G.5.3).
+
+    A mocked RoundMemoPublisher is injected through the constructor so the
+    wiring itself is exercised without touching the ledger; the publisher's
+    own behavior (payload shape, memo type, best-effort skip on failure or
+    missing configuration) is covered by tests/test_round_memo_publisher.py,
+    and the "a skipped/failed memo never fails the round" behavior is
+    already exercised end-to-end by
+    TestLifecycleProgression.test_unbuilt_stages_fail_the_round_explicitly
+    above, which runs the real (unmocked) _announce against an
+    unconfigured PFTL and confirms the round still advances past it.
+    """
+
+    def test_default_construction_wires_a_real_publisher(self):
+        assert isinstance(RoundOrchestrator()._memo_publisher, RoundMemoPublisher)
+
+    def test_announce_calls_publish_round_frozen_with_the_round_id(self, db):
+        class _FreezeOnly(RoundOrchestrator):
+            def _freeze(self, conn, round_ctx):
+                pass
+
+        mock_publisher = MagicMock()
+        mock_publisher.publish_round_frozen.return_value = "TXHASH"
+        orchestrator = _FreezeOnly(memo_publisher=mock_publisher)
+
+        result = orchestrator.run_round(TRIGGER_SCHEDULED)
+
+        mock_publisher.publish_round_frozen.assert_called_once()
+        conn_arg, round_id_arg = mock_publisher.publish_round_frozen.call_args[0]
+        assert round_id_arg == result["round_id"]
+        mock_publisher.publish_round_complete.assert_not_called()
+
+    def test_publish_record_calls_publish_round_complete_with_the_round_id(self, db):
+        class _DecideOnly(RoundOrchestrator):
+            def _decide(self, conn, round_ctx):
+                pass
+
+        round_id = _insert_round(db, 1, RoundState.DECIDED)
+        mock_publisher = MagicMock()
+        mock_publisher.publish_round_complete.return_value = "TXHASH"
+        orchestrator = _DecideOnly(memo_publisher=mock_publisher)
+
+        results = orchestrator.publish_due_rounds()
+
+        assert len(results) == 1
+        assert results[0]["status"] == RoundState.COMPLETE.value
+        mock_publisher.publish_round_complete.assert_called_once()
+        conn_arg, round_id_arg = mock_publisher.publish_round_complete.call_args[0]
+        assert round_id_arg == round_id
+        mock_publisher.publish_round_frozen.assert_not_called()
