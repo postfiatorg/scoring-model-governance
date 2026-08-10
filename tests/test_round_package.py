@@ -352,7 +352,7 @@ class TestFreezeRound:
 
         # The freeze succeeds and the round fails at the next unbuilt stage.
         assert result["status"] == RoundState.FAILED.value
-        assert "announcement" in result["error"]
+        assert "judge draw" in result["error"]
         cursor = db.cursor()
         cursor.execute(
             "SELECT package_cid, error_message FROM governance_rounds WHERE round_number = %s",
@@ -361,7 +361,7 @@ class TestFreezeRound:
         package_cid, error_message = cursor.fetchone()
         cursor.close()
         assert package_cid == "QmWired"
-        assert error_message.startswith("FROZEN:")
+        assert error_message.startswith("ANNOUNCED:")
 
     def test_ineligible_pool_fails_the_round_with_the_reason(self, db):
         result = RoundOrchestrator().run_round(TRIGGER_MANUAL)
