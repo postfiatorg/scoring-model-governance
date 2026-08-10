@@ -521,6 +521,46 @@ HTTPS at `GET /api/governance/rounds/{round}/package` (the bundle) and
 gateway-independent side of the fetch-with-IPFS-fallback contract
 sidecars use.
 
+## Governance round memos (G.5.3)
+
+`clients/pftl.py` and `services/round_memo_publisher.py` are this
+service's on-chain announcement layer, adapted from dynamic-unl-scoring's
+own PFT Ledger integration:
+
+- [`scoring_service/clients/pftl.py`](https://github.com/postfiatorg/dynamic-unl-scoring/blob/6ae228f36fa3653cb75977419652ede45c2d5792/scoring_service/clients/pftl.py) — `PFTLClient` is carried over with
+  its wallet-derivation helpers (`wallet_from_hex_key` / `wallet_from_secret`,
+  seed or hex-key) and `submit_memo` unchanged in behavior; the
+  ledger-history-scanning surface (`account_tx`, balance/close-time
+  lookups) is omitted since this service only ever emits memos.
+- [`scoring_service/services/onchain_publisher.py`](https://github.com/postfiatorg/dynamic-unl-scoring/blob/6ae228f36fa3653cb75977419652ede45c2d5792/scoring_service/services/onchain_publisher.py) — the payload-assembly
+  and best-effort publish/log pattern `round_memo_publisher.py` follows.
+
+Two memos are submitted per round, each a 1-drop Payment with a
+hex-encoded, canonically-serialized `{round_id, status, package_hash}`
+memo: `pf_governance_round_frozen_v1` when `_announce` runs (right after
+the round's package hash is durably persisted by the freeze stage) and
+`pf_governance_round_complete_v1` when `_publish_record` runs (right
+after the round decides). Both stages are best-effort — a missing
+`PFTL_*` configuration or a ledger submission failure is logged and never
+raises, so a memo problem never blocks round progression, matching the
+"keep publishing outside consensus, quorum, and veto checks" requirement
+and this repo's own `record_publisher.py` philosophy.
+
+`RoundMemoPublisher`'s `FROZEN_STATUS`/`COMPLETE_STATUS` string constants
+are deliberately duplicated rather than imported from
+`orchestrator.RoundState`, since `orchestrator.py` imports
+`round_memo_publisher.py` and importing back would be circular;
+`TestStatusConstantsMatchRoundState` in the test suite imports both and
+asserts equality so any future drift is caught by CI. `RoundOrchestrator`
+takes an optional `memo_publisher` constructor argument (defaulting to a
+real `RoundMemoPublisher()`) purely so tests can inject a mock and assert
+the wiring without touching the ledger.
+
+Configuration follows this repo's standard `pydantic-settings` pattern
+(`PFTL_RPC_URL`, `PFTL_WALLET_SECRET`, `PFTL_MEMO_DESTINATION`,
+`PFTL_NETWORK`); `pftl_enabled` is `True` only once all three of the
+first are set, mirroring `records_enabled`/`ipfs_enabled`.
+
 ## CI
 
 GitHub Actions runs the test suite against a PostgreSQL 16 service container and builds the Docker image on every pull request and push to `main`. A separate scheduled workflow checks mapping freshness against the live LiveBench data weekly, and the Vendor Freshness workflow compares the vendored dynamic-unl-scoring copies against upstream on pushes, pull requests, and a weekly schedule.
