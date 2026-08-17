@@ -76,6 +76,7 @@ governance_service/
 │   ├── pool.py          # Public pool/refresh/blocklist/health reads + refresh trigger
 │   └── rounds.py        # Admin-guarded manual round trigger
 ├── clients/
+│   ├── pftl.py          # PFTL chain client: publisher wallet, typed memo submission
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
 │   ├── huggingface.py   # Revision pinning, weight sizes, config, license/gating
 │   ├── scoring_api.py   # Scoring-service rounds/input-package fetch + IPFS gateway fallback
@@ -109,7 +110,8 @@ governance_service/
     ├── regrading.py     # Offline chain: frozen material -> grades
     ├── orchestrator.py  # Governance round state machine + stage pipeline
     ├── scheduler.py     # Round cadence scheduler + advisory locking
-    └── round_package.py # Frozen round package: assembly, pinning, persistence
+    ├── round_package.py # Frozen round package: assembly, pinning, persistence
+    └── announcement.py  # Governance memo formats + the on-chain announce stage
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -520,6 +522,32 @@ HTTPS at `GET /api/governance/rounds/{round}/package` (the bundle) and
 `GET /api/governance/rounds/{round}/package/{path}` — the
 gateway-independent side of the fetch-with-IPFS-fallback contract
 sidecars use.
+
+## On-chain publishing (G.5.3)
+
+`services/announcement.py` makes a frozen round public and datable on the
+PFT Ledger. The `_announce` stage submits a governance announcement memo
+from the foundation publisher wallet — the same account scoring-round
+announcements publish from — carrying the network, round number, package
+CID and hash, and the absolute commit/reveal window timestamps, derived
+at emission by the scoring discipline: anchored at validated-ledger close
+time (service UTC as the logged fallback), with the commit window never
+opening before the freeze. The governance memo types live in their own
+versioned namespace (`pf_governance_round_announcement_v1`; the
+round-close `pf_governance_round_receipt_v1` format is defined here and
+emitted with the final record at G.5.5), MemoData is the canonical JSON
+bytes of the payload, and the format specification is itself part of the
+frozen package (`round/announcement_format.json`) so verifiers check the
+on-chain memo against the frozen contract.
+
+The announcement transaction's validated ledger index is persisted
+(migration 010) as the anchor the frozen judge-draw procedure derives its
+drawing ledger from, and `commit_closes_at` is recorded — the value the
+withheld-publication release gates on. `clients/pftl.py` is the adapted
+scoring PFTL client (publisher wallet from `PFTL_WALLET_SECRET`, typed
+memo Payments, validated-ledger reads), with one divergence: submission
+also returns the validated ledger index. Configuration: `PFTL_RPC_URL`,
+`PFTL_WALLET_SECRET`, `PFTL_MEMO_DESTINATION`, `PFTL_NETWORK_ID`.
 
 ## CI
 

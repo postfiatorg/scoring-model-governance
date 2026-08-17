@@ -350,9 +350,10 @@ class TestFreezeRound:
 
         result = RoundOrchestrator().run_round(TRIGGER_MANUAL)
 
-        # The freeze succeeds and the round fails at the next unbuilt stage.
+        # The freeze succeeds; the round fails at the announcement, which
+        # has no configured chain in the hermetic suite.
         assert result["status"] == RoundState.FAILED.value
-        assert "announcement" in result["error"]
+        assert "PFTL" in result["error"]
         cursor = db.cursor()
         cursor.execute(
             "SELECT package_cid, error_message FROM governance_rounds WHERE round_number = %s",

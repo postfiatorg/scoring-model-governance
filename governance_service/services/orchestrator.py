@@ -2,12 +2,12 @@
 
 G.5.1 delivered the lifecycle backbone: the round states, their restart
 classification, the persistence helpers, and the stage pipeline the G.5
-steps fill in with real behavior. The freeze stage is real (G.5.2,
-``round_package``); the remaining stages (G.5.3 announcement, G.5.4 judge
-draw, G.5.5 withholding and final publication, G.5.6 decision, with the
-G.3 exam and G.4 grading engines wired in along the way) raise
-StageNotImplemented until their step lands, so a prematurely triggered
-round fails explicitly instead of faking progress.
+steps fill in with real behavior. The freeze (G.5.2, ``round_package``)
+and the announcement (G.5.3, ``announcement``) are real; the remaining
+stages (G.5.4 judge draw, G.5.5 withholding and final publication, G.5.6
+decision, with the G.3 exam and G.4 grading engines wired in along the
+way) raise StageNotImplemented until their step lands, so a prematurely
+triggered round fails explicitly instead of faking progress.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Any
 
 from governance_service.database import get_db
-from governance_service.services import round_package
+from governance_service.services import announcement, round_package
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +375,7 @@ class RoundOrchestrator:
         round_package.freeze_round(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _announce(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("announcement", "G.5.3")
+        announcement.announce_round(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _draw_judge(self, conn, round_ctx) -> None:
         raise StageNotImplemented("judge draw", "G.5.4")

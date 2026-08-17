@@ -10,9 +10,9 @@ from governance_service.main import app
 
 @pytest.fixture(autouse=True)
 def _publication_disabled(monkeypatch):
-    """Keep the suite from ever publishing or pinning for real.
+    """Keep the suite from ever publishing, pinning, or submitting on-chain.
 
-    A developer's .env may carry live RECORDS_GITHUB_TOKEN or IPFS
+    A developer's .env may carry live RECORDS_GITHUB_TOKEN, IPFS, or PFTL
     credentials; tests that exercise publication enable it explicitly on
     top of this guard.
     """
@@ -20,6 +20,8 @@ def _publication_disabled(monkeypatch):
     monkeypatch.setattr(settings, "ipfs_api_url", "")
     monkeypatch.setattr(settings, "pinata_api_key", "")
     monkeypatch.setattr(settings, "pinata_api_secret", "")
+    monkeypatch.setattr(settings, "pftl_rpc_url", "")
+    monkeypatch.setattr(settings, "pftl_wallet_secret", "")
 
 
 @pytest.fixture()

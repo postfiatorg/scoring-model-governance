@@ -10,8 +10,8 @@ hash of the bundle), pinned to IPFS, and persisted for HTTPS serving.
 After this point nothing can be tuned; changing anything means abandoning
 the round.
 
-The announcement formats join the package at G.5.3, when the governance
-memo types exist; the roadmap assigns them to on-chain publishing.
+The announcement format specification is part of the package, so
+verifiers can check the on-chain memo against the frozen contract.
 """
 
 import json
@@ -28,6 +28,7 @@ from governance_service.clients.pinata import PinataClient
 from governance_service.config import settings
 from governance_service.models.runtime_profile import RuntimeProfile
 from governance_service.scoring import canonical_json_bytes, canonical_json_hash
+from governance_service.services import announcement
 from governance_service.services import corpus as corpus_service
 from governance_service.services.candidate_profiles import CURRENT_POOL_PROFILES
 from governance_service.services.checker import RULES_PATH
@@ -246,6 +247,26 @@ def build_package(
             "Only the model name and the chat-template settings block are "
             "derived from each candidate's frozen runtime profile; every "
             "other byte of the production request is untouched."
+        ),
+    }
+
+    files["round/announcement_format.json"] = {
+        "protocol_version": announcement.GOVERNANCE_PROTOCOL_VERSION,
+        "memo_types": {
+            "round_announcement": announcement.ROUND_ANNOUNCEMENT_TYPE,
+            "round_receipt": announcement.ROUND_RECEIPT_TYPE,
+        },
+        "announcement_fields": list(announcement.ANNOUNCEMENT_PAYLOAD_FIELDS),
+        "receipt_fields": list(announcement.RECEIPT_PAYLOAD_FIELDS),
+        "canonicalization": (
+            "MemoData is the canonical JSON bytes (sorted keys, compact "
+            "separators) of the payload; MemoType carries the type "
+            "discriminator, so payloads carry no type field."
+        ),
+        "canonical_announcement": (
+            "When the publisher account carries more than one announcement "
+            "for a round number, the latest validated one is canonical — "
+            "it is the announcement the recorded round identity matches."
         ),
     }
 

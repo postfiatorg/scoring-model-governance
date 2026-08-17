@@ -115,6 +115,27 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # PFTL chain
+    # -------------------------------------------------------------------------
+    pftl_rpc_url: str = Field(
+        default="",
+        description="PFTL JSON-RPC endpoint for on-chain memo submission",
+    )
+    pftl_wallet_secret: str = Field(
+        default="",
+        description="Foundation publisher wallet secret (seed or hex private "
+        "key) — the same account scoring-round announcements publish from",
+    )
+    pftl_memo_destination: str = Field(
+        default="",
+        description="Destination account for governance memo payments",
+    )
+    pftl_network_id: int = Field(
+        default=2024,
+        description="PFTL network id (devnet 2024, testnet 2025, mainnet 2026)",
+    )
+
+    # -------------------------------------------------------------------------
     # Incumbent
     # -------------------------------------------------------------------------
     incumbent_hf_repo: str = Field(
