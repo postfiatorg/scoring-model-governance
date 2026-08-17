@@ -312,17 +312,17 @@ def build_package(
     return files, bundle
 
 
-def pin_package(files: dict[str, Any], bundle: dict[str, Any], round_number: int) -> str:
-    """Pin the package directory, bundle included, and return its CID.
+def pin_package(files: dict[str, Any], bundle: dict[str, Any], pin_name: str) -> str:
+    """Pin a bundle directory, manifest included, and return its CID.
 
     Mirrors the repository's pin-with-fallback contract: the primary node
     pin is replicated to Pinata by CID, and when the primary pin fails
-    Pinata's direct upload is the write fallback. A freeze without a pin
-    is meaningless, so no available backend fails the freeze closed.
+    Pinata's direct upload is the write fallback. A freeze or record
+    publication without a pin is meaningless, so no available backend
+    fails the caller closed.
     """
     payload = {path: canonical_json_bytes(content) for path, content in files.items()}
     payload[BUNDLE_FILE_PATH] = canonical_json_bytes(bundle)
-    pin_name = f"governance-round-{settings.environment}-{round_number}"
 
     if settings.ipfs_enabled:
         cid = IPFSClient().pin_directory(payload)
@@ -334,17 +334,17 @@ def pin_package(files: dict[str, Any], bundle: dict[str, Any], round_number: int
     if settings.pinata_enabled:
         if settings.ipfs_enabled:
             logger.warning(
-                "Primary IPFS pin failed for round %d — falling back to "
+                "Primary IPFS pin failed for %s — falling back to "
                 "Pinata direct upload",
-                round_number,
+                pin_name,
             )
         cid = PinataClient().pin_directory(payload, name=pin_name)
         if cid:
             return cid
 
     raise FreezePinningError(
-        "Round package could not be pinned: no pinning backend succeeded "
-        "(configure IPFS_API_URL and/or Pinata credentials)"
+        f"Bundle {pin_name} could not be pinned: no pinning backend "
+        "succeeded (configure IPFS_API_URL and/or Pinata credentials)"
     )
 
 
@@ -401,7 +401,7 @@ def freeze_round(
     round_number: int,
     *,
     corpus_builder: Callable[[], corpus_service.CorpusResult] | None = None,
-    pin: Callable[[dict[str, Any], dict[str, Any], int], str] | None = None,
+    pin: Callable[[dict[str, Any], dict[str, Any], str], str] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Execute the freeze: pool, corpus, package, pin, persist.
@@ -421,7 +421,8 @@ def freeze_round(
     frozen_at = now or datetime.now(timezone.utc)
 
     files, bundle = build_package(round_number, corpus, pool, frozen_at)
-    cid = (pin or pin_package)(files, bundle, round_number)
+    pin_name = f"governance-round-{settings.environment}-{round_number}"
+    cid = (pin or pin_package)(files, bundle, pin_name)
     bundle_hash = persist_package(conn, round_id, files, bundle, cid, frozen_at)
 
     logger.info(

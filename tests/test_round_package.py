@@ -230,7 +230,7 @@ class TestPinning:
             lambda self, cid, name=None: replicated.update({"cid": cid, "name": name}) or True,
         )
 
-        cid = pin_package(files, bundle, 7)
+        cid = pin_package(files, bundle, "test-pin")
 
         assert cid == "QmPrimary"
         assert replicated["cid"] == "QmPrimary"
@@ -249,7 +249,7 @@ class TestPinning:
             lambda self, payload, name=None: "QmFallback",
         )
 
-        assert pin_package(files, bundle, 7) == "QmFallback"
+        assert pin_package(files, bundle, "test-pin") == "QmFallback"
 
     def test_no_backend_fails_closed(self, monkeypatch):
         files, bundle = self._files_and_bundle()
@@ -258,7 +258,7 @@ class TestPinning:
         monkeypatch.setattr(settings, "pinata_api_secret", "")
 
         with pytest.raises(FreezePinningError, match="no pinning backend"):
-            pin_package(files, bundle, 7)
+            pin_package(files, bundle, "test-pin")
 
     def test_bundle_is_part_of_the_pinned_payload(self, monkeypatch):
         files, bundle = self._files_and_bundle()
@@ -270,7 +270,7 @@ class TestPinning:
             lambda self, payload: seen.update(payload) or "QmSeen",
         )
 
-        pin_package(files, bundle, 7)
+        pin_package(files, bundle, "test-pin")
 
         assert BUNDLE_FILE_PATH in seen
         assert set(seen) == set(files) | {BUNDLE_FILE_PATH}

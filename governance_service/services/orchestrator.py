@@ -3,12 +3,12 @@
 G.5.1 delivered the lifecycle backbone: the round states, their restart
 classification, the persistence helpers, and the stage pipeline the G.5
 steps fill in with real behavior. The freeze (G.5.2, ``round_package``),
-the announcement (G.5.3, ``announcement``), and the judge draw (G.5.4,
-``judge_draw``) are real; the remaining stages (G.5.5 withholding and
-final publication, G.5.6 decision, with the G.3 exam and G.4 grading
-engines wired in along the way) raise StageNotImplemented until their
-step lands, so a prematurely triggered round fails explicitly instead of
-faking progress.
+the announcement (G.5.3, ``announcement``), the judge draw (G.5.4,
+``judge_draw``), and the withholding hold with final publication (G.5.5,
+``final_publication``) are real; the remaining stages (G.5.6 decision,
+with the G.3 exam and G.4 grading engines wired in along the way) raise
+StageNotImplemented until their step lands, so a prematurely triggered
+round fails explicitly instead of faking progress.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -23,7 +23,12 @@ from enum import Enum
 from typing import Any
 
 from governance_service.database import get_db
-from governance_service.services import announcement, judge_draw, round_package
+from governance_service.services import (
+    announcement,
+    final_publication,
+    judge_draw,
+    round_package,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -353,6 +358,20 @@ class RoundOrchestrator:
             try:
                 getattr(self, handler_name)(conn, round_ctx)
             except Exception as exc:
+                if pipeline is _PUBLICATION_PIPELINE:
+                    # Publication steps are idempotent from persisted
+                    # identity and may already have irreversible on-chain
+                    # effects, so the round stays in place for the next
+                    # tick's retry instead of stranding behind FAILED.
+                    conn.rollback()
+                    logger.exception(
+                        "Publication of round %d failed at %s — retrying next tick",
+                        round_number,
+                        entry_state.value,
+                    )
+                    result["status"] = state.value
+                    result["error"] = str(exc)
+                    return result
                 _fail_round(conn, round_id, f"{entry_state.value}: {exc}")
                 result["status"] = RoundState.FAILED.value
                 result["error"] = str(exc)
@@ -388,10 +407,12 @@ class RoundOrchestrator:
         raise StageNotImplemented("grading", "a later G.5 step")
 
     def _hold_outputs(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("output withholding", "G.5.5")
+        final_publication.hold_outputs(conn, round_ctx["id"])
 
     def _decide(self, conn, round_ctx) -> None:
         raise StageNotImplemented("decision", "G.5.6")
 
     def _publish_record(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("final publication", "G.5.5")
+        final_publication.publish_round_record(
+            conn, round_ctx["id"], round_ctx["round_number"]
+        )

@@ -112,10 +112,11 @@ governance_service/
     ├── scheduler.py     # Round cadence scheduler + advisory locking
     ├── round_package.py # Frozen round package: assembly, pinning, persistence
     ├── announcement.py  # Governance memo formats + the on-chain announce stage
-    └── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
+    ├── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
+    └── final_publication.py # Withholding hold + record pin, receipt, repo publish
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
-records/                 # Published governance records (pool refreshes)
+records/                 # Published governance records (pool refreshes, rounds)
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_smoke_deploy.py: account-readiness smoke tool
                          # exam_live_validation.py: small real-workspace exam run
@@ -572,6 +573,32 @@ The deterministic redraw ordering (`next_judge`: cyclic successor in
 draw order, skipping failed judges, `None` on exhaustion — the round is
 then abandoned) lives here as a pure function; the stages that detect a
 judge's mechanical failure invoke it when they land.
+
+## Output withholding and final publication (G.5.5)
+
+`services/final_publication.py` enforces the round's output-withholding
+discipline and closes it with the publication. Nothing a round produces
+becomes public before its commit window closes — sidecars must commit to
+results they computed themselves, so early publication would let a
+commitment echo the foundation's outputs. The hold half parks a graded
+round in the fail-closed `AWAITING_COMMIT_CLOSE` state, refusing to park
+a round with no recorded commit close (a NULL there would never
+release); the state machine's release gate frees it once the announced
+window has passed.
+
+The publication half runs after release and the decision, each step
+idempotent from its persisted identity (migration 012): the complete
+record — round identity and anchors, exam runs with raw outputs,
+disqualification verdicts, grading outputs; the decision section joins
+with G.5.6 — is bundled under the frozen-package manifest convention and
+pinned with the shared pin-with-fallback contract; the round-close
+receipt memo (`pf_governance_round_receipt_v1`, carrying the final
+record CID) is emitted from the publisher wallet with the announcement's
+re-run safety; and the human-readable round record — summary plus the
+CIDs pointing at the pinned bundle, never the raw outputs themselves —
+is committed to `records/rounds/{environment}/` via the GitHub records
+client (skipped, and recorded as skipped, when no records token is
+configured).
 
 ## CI
 

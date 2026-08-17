@@ -121,7 +121,7 @@ The decision and its full rationale — including an explicit "incumbent retaine
 - Before anything relies on the new setup, validators reproduce at least one full scoring round on it — frozen artifacts, deterministic inference, commit-reveal, and a clean sealed convergence report.
 - Rollback is the same move in reverse: a manifest change back to the previous pinned profile, which remains deployable.
 
-When the round closes — whether the incumbent stays or a new model ships — its complete record is published: every candidate's raw outputs, the judge's grades, the sealed verification, and the decision with its rationale, all committed to this repository and pinned to IPFS.
+When the round closes — whether the incumbent stays or a new model ships — its complete record is published: every candidate's raw outputs, the judge's grades, the sealed verification, and the decision with its rationale. The complete record is pinned to IPFS as one content-addressed bundle, and the round's record document — the summary, grades, decision, and the content identifiers pointing at that bundle — is committed to this repository, the same split between bulk audit material and its committed pointers that scoring rounds use.
 
 ## Decentralization path
 
