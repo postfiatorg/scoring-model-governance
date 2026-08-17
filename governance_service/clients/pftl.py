@@ -156,10 +156,32 @@ class PFTLClient:
         are derived from. Raises RuntimeError if the RPC call fails.
         """
         response = self.client.request(Ledger(ledger_index="validated"))
+        close_time = self._require_ledger(response)["close_time"]
+        return ripple_time_to_datetime(int(close_time))
+
+    def latest_validated_ledger_index(self) -> int:
+        """The index of the latest validated ledger."""
+        response = self.client.request(Ledger(ledger_index="validated"))
+        self._require_ledger(response)
+        return int(response.result["ledger_index"])
+
+    def ledger_hash(self, ledger_index: int) -> str:
+        """The hash of one validated ledger — the judge-draw randomness.
+
+        Raises RuntimeError when the RPC call fails or the ledger is not
+        validated yet; callers wait until the index is validated first.
+        """
+        response = self.client.request(Ledger(ledger_index=ledger_index))
+        ledger = self._require_ledger(response)
+        if not response.result.get("validated"):
+            raise RuntimeError(f"ledger {ledger_index} is not validated yet")
+        return str(ledger["ledger_hash"])
+
+    @staticmethod
+    def _require_ledger(response) -> dict:
         if not response.is_successful():
             error = response.result.get("error_message") or response.result.get(
                 "error", "unknown error"
             )
             raise RuntimeError(f"ledger request failed: {error}")
-        close_time = response.result["ledger"]["close_time"]
-        return ripple_time_to_datetime(int(close_time))
+        return response.result["ledger"]

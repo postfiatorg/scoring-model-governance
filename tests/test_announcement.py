@@ -332,9 +332,10 @@ class TestAnnounceRound:
 
         result = RoundOrchestrator().run_round(TRIGGER_MANUAL)
 
-        # Freeze and announcement succeed; the round fails at the judge draw.
+        # Freeze and announcement succeed; the round fails at the judge
+        # draw, which has no configured chain in the hermetic suite.
         assert result["status"] == RoundState.FAILED.value
-        assert "judge draw" in result["error"]
+        assert "PFTL" in result["error"]
         cursor = db.cursor()
         cursor.execute(
             """

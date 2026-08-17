@@ -111,7 +111,8 @@ governance_service/
     ├── orchestrator.py  # Governance round state machine + stage pipeline
     ├── scheduler.py     # Round cadence scheduler + advisory locking
     ├── round_package.py # Frozen round package: assembly, pinning, persistence
-    └── announcement.py  # Governance memo formats + the on-chain announce stage
+    ├── announcement.py  # Governance memo formats + the on-chain announce stage
+    └── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes)
@@ -548,6 +549,29 @@ scoring PFTL client (publisher wallet from `PFTL_WALLET_SECRET`, typed
 memo Payments, validated-ledger reads), with one divergence: submission
 also returns the validated ledger index. Configuration: `PFTL_RPC_URL`,
 `PFTL_WALLET_SECRET`, `PFTL_MEMO_DESTINATION`, `PFTL_NETWORK_ID`.
+
+## Judge draw (G.5.4)
+
+`services/judge_draw.py` implements the draw procedure the round package
+froze at G.5.2: the drawing ledger is the announcement transaction's
+validated ledger index plus the frozen offset (10); its hash, read as a
+big-endian integer, modulo the challenger count indexes the challengers
+sorted ascending by `hf_repo` in Unicode codepoint order. The challenger
+list comes from the frozen package artifacts (`pool/candidates.json`),
+never the live pool, and the incumbent is excluded by construction. The
+`_draw_judge` stage (`ANNOUNCED → JUDGE_DRAWN`) waits within a bounded
+window for the drawing ledger to validate (by construction it closes
+under a minute after the announcement), then persists the drawn judge
+and the drawing ledger's index and hash (migration 011).
+
+The draw is a pure function of public data — anyone recomputes the
+identical judge from the on-chain announcement and the frozen package —
+and it is re-run-safe two ways: a round with a persisted draw returns it
+without touching the chain, and a recomputation is deterministic anyway.
+The deterministic redraw ordering (`next_judge`: cyclic successor in
+draw order, skipping failed judges, `None` on exhaustion — the round is
+then abandoned) lives here as a pure function; the stages that detect a
+judge's mechanical failure invoke it when they land.
 
 ## CI
 

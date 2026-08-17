@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 PACKAGE_KIND = "governance_round"
 PACKAGE_MANIFEST_VERSION = 1
 BUNDLE_FILE_PATH = "bundle.json"
+CANDIDATES_FILE_PATH = "pool/candidates.json"
 
 # The methodology's freeze eligibility rule: with fewer challengers the
 # drawn judge could never be replaced and no challenger could win.
@@ -211,7 +212,7 @@ def build_package(
     for name, request in sorted(corpus.constructed.items()):
         files[f"corpus/edge_cases/{name}.json"] = request
 
-    files["pool/candidates.json"] = {
+    files[CANDIDATES_FILE_PATH] = {
         "refresh_id": pool.refresh_id,
         "incumbent": _profile_entry(pool.incumbent),
         "challengers": [_profile_entry(p) for p in pool.challengers],

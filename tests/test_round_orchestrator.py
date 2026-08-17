@@ -121,20 +121,23 @@ class TestLifecycleProgression:
         assert _round_row(db, result["round_id"])["trigger_source"] == TRIGGER_MANUAL
 
     def test_unbuilt_stages_fail_the_round_explicitly(self, db):
-        class _ThroughAnnouncement(RoundOrchestrator):
+        class _ThroughDraw(RoundOrchestrator):
             def _freeze(self, conn, round_ctx):
                 pass
 
             def _announce(self, conn, round_ctx):
                 pass
 
-        result = _ThroughAnnouncement().run_round(TRIGGER_SCHEDULED)
+            def _draw_judge(self, conn, round_ctx):
+                pass
+
+        result = _ThroughDraw().run_round(TRIGGER_SCHEDULED)
 
         assert result["status"] == RoundState.FAILED.value
         row = _round_row(db, result["round_id"])
         assert row["status"] == RoundState.FAILED.value
         assert "not implemented" in row["error_message"]
-        assert "judge draw" in row["error_message"]
+        assert "exam" in row["error_message"]
         assert row["completed_at"] is not None
 
     def test_stage_failure_marks_round_failed_with_stage_prefix(self, db):
