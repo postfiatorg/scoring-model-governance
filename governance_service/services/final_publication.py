@@ -66,6 +66,10 @@ _ROUND_COLUMNS = (
     "judge_hf_repo",
     "draw_ledger_index",
     "draw_ledger_hash",
+    "decision",
+    "winner_hf_repo",
+    "decision_rationale",
+    "decided_at",
 )
 
 _EXAM_RUN_COLUMNS = (
@@ -231,6 +235,8 @@ def _render_repo_record(
         "and grading outputs — lives in the pinned bundle; this document "
         "carries the round identity and the pointers to verify it.",
         "",
+        f"- **Decision:** {round_data['decision'] or 'pending'}",
+        f"- **Winner:** {round_data['winner_hf_repo'] or 'pending'}",
         f"- **Judge:** {round_data['judge_hf_repo'] or 'not drawn'}",
         f"- **Package CID:** `{round_data['package_cid']}`",
         f"- **Package hash:** `{round_data['package_hash']}`",

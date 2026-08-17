@@ -60,6 +60,7 @@ PACKAGE_KIND = "governance_round"
 PACKAGE_MANIFEST_VERSION = 1
 BUNDLE_FILE_PATH = "bundle.json"
 CANDIDATES_FILE_PATH = "pool/candidates.json"
+PARAMETERS_FILE_PATH = "round/parameters.json"
 
 # The methodology's freeze eligibility rule: with fewer challengers the
 # drawn judge could never be replaced and no challenger could win.
@@ -271,7 +272,7 @@ def build_package(
         ),
     }
 
-    files["round/parameters.json"] = {
+    files[PARAMETERS_FILE_PATH] = {
         "repeat_count": REPEAT_COUNT,
         "incumbent_margin_points": INCUMBENT_MARGIN_POINTS,
         "commit_window_seconds": settings.round_commit_window_seconds,

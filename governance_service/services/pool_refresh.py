@@ -254,11 +254,39 @@ def run_refresh(
     )
 
 
-def sync_blocklist(connection, blocklist: list[BlocklistEntry]) -> None:
-    """Mirror the standing blocklist file into the database.
+def load_table_blocklist(connection) -> list[BlocklistEntry]:
+    """The effective blocklist: the synced curated file plus every
+    round-written disqualification. Read after sync_blocklist so a
+    refresh filters by the union."""
+    cursor = connection.cursor()
+    cursor.execute(
+        """
+        SELECT hf_repo, revision, reason, round_reference
+        FROM blocklist
+        ORDER BY hf_repo, revision
+        """
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    connection.rollback()
+    return [
+        BlocklistEntry(
+            hf_repo=hf_repo,
+            revision=revision,
+            reason=reason,
+            round_reference=round_reference,
+        )
+        for hf_repo, revision, reason, round_reference in rows
+    ]
 
-    The file is the source of truth; entries are append-only per the
-    methodology, so existing rows are never updated or removed.
+
+def sync_blocklist(connection, blocklist: list[BlocklistEntry]) -> None:
+    """Append the curated blocklist file's entries into the database.
+
+    The table is the effective blocklist — the file contributes the
+    curated entries and governance rounds write theirs directly. Entries
+    are append-only per the methodology, so existing rows are never
+    updated or removed.
     """
     cursor = connection.cursor()
     for entry in blocklist:
@@ -420,8 +448,12 @@ def execute_refresh(connection, refresh_id: int) -> RefreshResult | None:
     raising: a refresh that cannot complete never touches the pool.
     """
     try:
-        blocklist = load_blocklist()
-        sync_blocklist(connection, blocklist)
+        sync_blocklist(connection, load_blocklist())
+        # The effective blocklist is the table: the curated file just
+        # synced into it, and governance rounds write their
+        # disqualifications there directly — the refresh filters by the
+        # union of both.
+        blocklist = load_table_blocklist(connection)
 
         with httpx.Client(
             timeout=settings.http_timeout_seconds, follow_redirects=True

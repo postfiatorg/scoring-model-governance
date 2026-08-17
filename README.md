@@ -113,7 +113,8 @@ governance_service/
     ├── round_package.py # Frozen round package: assembly, pinning, persistence
     ├── announcement.py  # Governance memo formats + the on-chain announce stage
     ├── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
-    └── final_publication.py # Withholding hold + record pin, receipt, repo publish
+    ├── final_publication.py # Withholding hold + record pin, receipt, repo publish
+    └── decision.py      # Margin-gated verdict, ledger tie-break, blocklist writing
 prompts/                 # Versioned governance grading prompts
 migrations/              # Numbered SQL migrations, applied in order
 records/                 # Published governance records (pool refreshes, rounds)
@@ -174,8 +175,11 @@ and unmapped models), and `pool_refresh_candidates` holds every evaluated
 candidate's rule outcome for every considered release. The standing
 blocklist lives in `governance_service/model_blocklist.yaml` — curated by
 hand like the model mapping, one entry per pinned revision that failed a
-past round — and is mirrored into the `blocklist` table when a refresh
-consumes it.
+past round — and is appended into the `blocklist` table when a refresh
+runs. Since G.5.6 the table is the effective blocklist a refresh filters
+by: governance rounds book their disqualifications there directly, so a
+verifier reproducing a refresh needs the curated file plus the round
+records' entries.
 
 A refresh is triggered manually (the development and operations path;
 scheduling arrives with round orchestration):
@@ -599,6 +603,33 @@ CIDs pointing at the pinned bundle, never the raw outputs themselves —
 is committed to `records/rounds/{environment}/` via the GitHub records
 client (skipped, and recorded as skipped, when no records token is
 configured).
+
+## Decision engine (G.5.6)
+
+`services/decision.py` turns a round's evidence into its verdict — pure
+arithmetic over persisted data, so any verifier recomputes the identical
+result. The rules are the methodology's: the highest-graded surviving
+challenger replaces the incumbent only when it beats it by the frozen
+replacement margin (meeting the margin exactly counts as beating by it);
+a mechanically disqualified incumbent loses that protection and the best
+survivor wins outright; with no survivor at all the incumbent keeps
+serving by necessity and the condition is logged as a production alarm.
+The explicit incumbent-retained verdict is always recorded. Grade ties
+between challengers are broken by the round's drawing-ledger hash
+through the judge draw's modulo mapping — public before any grade
+existed, so the tie-break was fixed before a tie could be known, and no
+challenger is favored by its name.
+
+The incumbent identity and the margin come from the frozen package
+artifacts, never live configuration. Disqualified revisions are booked
+into the standing blocklist with the round as their reference, and pool
+refreshes now filter by the blocklist table — the curated file syncs
+into it append-only, and rounds write their entries there directly, so
+a round's disqualification takes effect at the next refresh without a
+hand edit. The verdict, winner, and full rationale persist on the round
+(migration 013, which also adds the per-candidate `final_grade` the
+grading-stage wiring will populate) and join the final record bundle and
+the repository record document.
 
 ## CI
 
