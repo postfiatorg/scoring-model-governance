@@ -6,13 +6,11 @@ import json
 import httpx
 import pytest
 
-from governance_service.scoring import canonical_json_hash
-from governance_service.services import candidate_profiles, corpus
+from governance_service.services import candidate_profiles
 from governance_service.services.exam_engine import (
     ExamEngine,
     ExamItem,
     get_run_outputs,
-    load_exam_items,
     model_response_hash,
 )
 from governance_service.services.runtime_manager import (
@@ -312,76 +310,6 @@ def test_deterministic_rejection_is_candidate_evidence(db):
     assert "upstream said 400" in evidence["detail"]
 
 
-def _corpus_result_with_one_round() -> tuple[corpus.CorpusResult, dict, dict]:
-    request = {"model": "test", "messages": [], "extra_body": {}}
-    files = {
-        "inputs/model_request.json": request,
-        "inputs/validator_map.json": {"v001": {"master_key": "nH..."}},
-    }
-    bundle = {
-        "bundle_version": 1,
-        "package_kind": "input",
-        "round_kind": "normal",
-        "network": "devnet",
-        "round_number": 42,
-        "input_frozen_at": "2026-07-01T00:00:00+00:00",
-        "file_hashes": {path: canonical_json_hash(body) for path, body in files.items()},
-    }
-    result = corpus.CorpusResult(
-        manifest={
-            "historical": [
-                {
-                    "round_number": 42,
-                    "input_package_cid": "QmTest42",
-                    "input_package_hash": canonical_json_hash(bundle),
-                    "input_frozen_at": bundle["input_frozen_at"],
-                    "verified_file_count": 1,
-                }
-            ]
-        },
-        constructed={"alpha_case": {"model": "test", "messages": [], "extra_body": {}}},
-    )
-    return result, bundle, files
-
-
-def _corpus_client(bundle: dict, files: dict) -> httpx.Client:
-    def handler(request: httpx.Request) -> httpx.Response:
-        path = request.url.path
-        if path.endswith("/input/bundle.json"):
-            return httpx.Response(200, json=bundle)
-        for file_path, body in files.items():
-            if path.endswith(f"/input/{file_path}"):
-                return httpx.Response(200, json=body)
-        return httpx.Response(404, json={"error": "missing"})
-
-    return httpx.Client(transport=httpx.MockTransport(handler))
-
-
-def test_load_exam_items_verifies_and_orders():
-    result, bundle, files = _corpus_result_with_one_round()
-    with _corpus_client(bundle, files) as client:
-        items = load_exam_items(client, result)
-    assert [item.item_id for item in items] == ["round-42", "edge:alpha_case"]
-    assert items[0].request == files["inputs/model_request.json"]
-
-
-def test_load_exam_items_rejects_tampered_request():
-    result, bundle, files = _corpus_result_with_one_round()
-    files["inputs/model_request.json"] = {"model": "tampered", "messages": [], "extra_body": {}}
-    with _corpus_client(bundle, files) as client:
-        with pytest.raises(corpus.CorpusVerificationError, match="model request hash"):
-            load_exam_items(client, result)
-
-
-def test_load_exam_items_rejects_missing_request_entry():
-    result, bundle, files = _corpus_result_with_one_round()
-    del bundle["file_hashes"]["inputs/model_request.json"]
-    result.manifest["historical"][0]["input_package_hash"] = canonical_json_hash(bundle)
-    with _corpus_client(bundle, files) as client:
-        with pytest.raises(corpus.CorpusVerificationError, match="no inputs/model_request"):
-            load_exam_items(client, result)
-
-
 # -- governance round linkage ------------------------------------------------
 
 
@@ -434,3 +362,24 @@ def test_round_link_backfills_when_a_run_resumes(db):
         db, [INCUMBENT], ITEMS, round_id=round_id
     )
     assert _run_round_id(db, run_ids[0]) == round_id
+
+
+def test_repeat_count_is_part_of_the_run_identity(db):
+    first = _engine(StubRuntime(), FakeEndpoint())
+    first_run = first.examine(db, [INCUMBENT], ITEMS, repeats=3)[0]
+
+    endpoint = FakeEndpoint()
+    second_run = _engine(StubRuntime(), endpoint).examine(
+        db, [INCUMBENT], ITEMS, repeats=2
+    )[0]
+
+    # A different frozen repeat count never reuses stored outputs: the
+    # old run's attempt counts would fail determinism with no real failure.
+    assert second_run != first_run
+    assert len(endpoint.calls) == len(ITEMS) * 2
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT id, repeats FROM exam_runs ORDER BY id",
+    )
+    assert cursor.fetchall() == [(first_run, 3), (second_run, 2)]
+    cursor.close()

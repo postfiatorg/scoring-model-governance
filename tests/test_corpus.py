@@ -239,3 +239,62 @@ def test_scoring_api_not_found_is_not_retried():
         with pytest.raises(scoring_api.ScoringServiceNotFoundError):
             scoring_api.fetch_input_file(client, 1, "bundle.json")
     assert len(calls) == 1
+
+
+def _verified_item(bundle: dict, package_hash: str) -> corpus.VerifiedHistoricalItem:
+    return corpus.VerifiedHistoricalItem(
+        round_number=bundle["round_number"],
+        input_package_cid=f"QmTest{bundle['round_number']}",
+        input_package_hash=package_hash,
+        input_frozen_at=bundle["input_frozen_at"],
+        verified_file_count=len(bundle["file_hashes"]),
+    )
+
+
+def test_fetch_package_files_returns_verified_contents():
+    files, bundle, package_hash = _make_package(42)
+    with _client_for(_https_handler([], {42: (files, bundle, package_hash)})) as client:
+        contents = corpus.fetch_package_files(
+            client,
+            _verified_item(bundle, package_hash),
+            (corpus.MODEL_REQUEST_FILE_PATH, "inputs/validator_evidence.json"),
+        )
+    assert contents[corpus.MODEL_REQUEST_FILE_PATH] == files["inputs/model_request.json"]
+    assert contents["inputs/validator_evidence.json"] == files["inputs/validator_evidence.json"]
+
+
+def test_fetch_package_files_rejects_drifted_bundle():
+    files, bundle, package_hash = _make_package(42)
+    item = _verified_item(bundle, "0" * 64)
+    with _client_for(_https_handler([], {42: (files, bundle, package_hash)})) as client:
+        with pytest.raises(corpus.CorpusVerificationError, match="bundle hash changed"):
+            corpus.fetch_package_files(client, item, (corpus.MODEL_REQUEST_FILE_PATH,))
+
+
+def test_fetch_package_files_rejects_tampered_file():
+    files, bundle, package_hash = _make_package(42)
+    files["inputs/model_request.json"] = {"model": "tampered"}
+    with _client_for(_https_handler([], {42: (files, bundle, package_hash)})) as client:
+        with pytest.raises(
+            corpus.CorpusVerificationError,
+            match="inputs/model_request.json hash mismatch",
+        ):
+            corpus.fetch_package_files(
+                client,
+                _verified_item(bundle, package_hash),
+                (corpus.MODEL_REQUEST_FILE_PATH,),
+            )
+
+
+def test_fetch_package_files_rejects_missing_entry():
+    files, bundle, package_hash = _make_package(42)
+    with _client_for(_https_handler([], {42: (files, bundle, package_hash)})) as client:
+        with pytest.raises(
+            corpus.CorpusVerificationError,
+            match="has no inputs/validator_map.json",
+        ):
+            corpus.fetch_package_files(
+                client,
+                _verified_item(bundle, package_hash),
+                (corpus.VALIDATOR_MAP_FILE_PATH,),
+            )

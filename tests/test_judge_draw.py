@@ -3,7 +3,7 @@
 import pytest
 
 from governance_service.services import announcement as announcement_service
-from governance_service.services import judge_draw, round_package
+from governance_service.services import exam_stage, judge_draw, round_package
 from governance_service.services.judge_draw import (
     DRAW_LEDGER_OFFSET,
     JudgeDrawError,
@@ -261,11 +261,18 @@ class TestDrawJudge:
         )
         monkeypatch.setattr(judge_draw, "PFTLClient", lambda: FakeDrawClient())
 
+        # The draw is this test's subject; the real exam stage would go to
+        # the network for the corpus, so it fails the round right after.
+        def _stubbed_exam(conn, round_id, round_number):
+            raise RuntimeError("exam stubbed for the draw test")
+
+        monkeypatch.setattr(exam_stage, "run_exam", _stubbed_exam)
+
         result = RoundOrchestrator().run_round(TRIGGER_MANUAL)
 
         # Freeze, announcement, and draw succeed; the round fails at the exam.
         assert result["status"] == RoundState.FAILED.value
-        assert "exam" in result["error"]
+        assert "exam stubbed" in result["error"]
         cursor = db.cursor()
         cursor.execute(
             """

@@ -205,13 +205,17 @@ def _load_round(conn, round_id: int) -> dict[str, Any]:
 
 
 def _load_candidates(conn, round_id: int) -> list[ExaminedCandidate]:
+    # Through the round's exam links, not exam_runs.round_id: a reused
+    # terminal run keeps the round that paid for it, but it answers for
+    # this round through governance_round_exam_runs.
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT hf_repo, revision, verdict, final_grade
-        FROM exam_runs
-        WHERE round_id = %s
-        ORDER BY hf_repo
+        SELECT r.hf_repo, r.revision, r.verdict, r.final_grade
+        FROM governance_round_exam_runs l
+        JOIN exam_runs r ON r.id = l.run_id
+        WHERE l.round_id = %s
+        ORDER BY r.hf_repo
         """,
         (round_id,),
     )

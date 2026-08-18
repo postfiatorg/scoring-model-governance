@@ -39,7 +39,6 @@ import httpx
 from governance_service.config import settings
 from governance_service.models.runtime_profile import RuntimeProfile
 from governance_service.scoring import canonical_json_hash, canonical_sha256
-from governance_service.services import corpus as corpus_service
 from governance_service.services.request_adaptation import adapt_request
 from governance_service.services.runtime_manager import (
     CandidateDeployError,
@@ -120,30 +119,14 @@ def corpus_items_hash(items: list[ExamItem]) -> str:
     )
 
 
-def load_exam_items(client: httpx.Client, result: "corpus_service.CorpusResult") -> list[ExamItem]:
-    """The corpus as exam items: historical requests fetched and re-verified,
-    constructed cases taken from the assembly's own payloads."""
-    items = [
-        ExamItem(
-            item_id=f"round-{entry['round_number']}",
-            request=corpus_service.fetch_exam_request(
-                client,
-                corpus_service.VerifiedHistoricalItem(
-                    round_number=entry["round_number"],
-                    input_package_cid=entry["input_package_cid"],
-                    input_package_hash=entry["input_package_hash"],
-                    input_frozen_at=entry["input_frozen_at"],
-                    verified_file_count=entry["verified_file_count"],
-                ),
-            ),
-        )
-        for entry in result.manifest["historical"]
-    ]
-    items += [
-        ExamItem(item_id=f"edge:{case_id}", request=request)
-        for case_id, request in sorted(result.constructed.items())
-    ]
-    return items
+def historical_item_id(round_number: int) -> str:
+    """The corpus item id of one historical scoring round."""
+    return f"round-{round_number}"
+
+
+def edge_case_item_id(case_id: str) -> str:
+    """The corpus item id of one constructed edge case."""
+    return f"edge:{case_id}"
 
 
 class ExamEngine:
@@ -173,9 +156,10 @@ class ExamEngine:
     ) -> list[int]:
         """Examine every candidate sequentially; returns the run ids.
 
-        Idempotent per (profile, corpus): a COMPLETED run is returned
-        without re-running, and an interrupted or infrastructure-aborted
-        run resumes, skipping the inferences it already stored. A
+        Idempotent per (profile, corpus, repeats): a COMPLETED run is
+        returned without re-running, and an interrupted or
+        infrastructure-aborted run resumes, skipping the inferences it
+        already stored. A
         candidate's own failure marks its run CANDIDATE_FAILED with the
         structured evidence and the exam moves on; an infrastructure
         failure marks the current run FAILED and re-raises — the caller
@@ -191,7 +175,7 @@ class ExamEngine:
         run_ids = []
         for profile in profiles:
             run_id, already_complete = self._get_or_resume_run(
-                connection, profile, corpus_hash, round_id
+                connection, profile, corpus_hash, repeats, round_id
             )
             run_ids.append(run_id)
             if already_complete:
@@ -258,24 +242,29 @@ class ExamEngine:
         connection,
         profile: RuntimeProfile,
         corpus_hash: str,
+        repeats: int,
         round_id: int | None = None,
     ) -> tuple[int, bool]:
-        """(run id, already-terminal) for this profile and corpus.
+        """(run id, already-terminal) for this profile, corpus, and repeats.
 
         COMPLETED and CANDIDATE_FAILED runs are terminal — re-examining
         the same profile on the same frozen corpus would re-pay for
         outputs determinism already fixed. RUNNING (crash) and FAILED
         (infrastructure abort) runs are resumed: flipped back to RUNNING
-        so ``_existing_attempts`` skips what they already stored.
+        so ``_existing_attempts`` skips what they already stored. The
+        repeat count is part of the identity: outputs stored under a
+        different repeat count would fail the determinism rule on
+        attempt counts alone, so they are never reused.
         """
         cursor = connection.cursor()
         cursor.execute(
             """
             SELECT id, status FROM exam_runs
             WHERE hf_repo = %s AND profile_hash = %s AND corpus_hash = %s
+                AND repeats = %s
             ORDER BY id DESC LIMIT 1
             """,
-            (profile.hf_repo, profile.content_hash(), corpus_hash),
+            (profile.hf_repo, profile.content_hash(), corpus_hash, repeats),
         )
         row = cursor.fetchone()
         if row is not None:
@@ -298,14 +287,16 @@ class ExamEngine:
 
         cursor.execute(
             """
-            INSERT INTO exam_runs (hf_repo, revision, profile_hash, corpus_hash, status, round_id)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO exam_runs
+                (hf_repo, revision, profile_hash, corpus_hash, repeats, status, round_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
             """,
             (
                 profile.hf_repo,
                 profile.revision,
                 profile.content_hash(),
                 corpus_hash,
+                repeats,
                 RUN_RUNNING,
                 round_id,
             ),
@@ -323,6 +314,9 @@ class ExamEngine:
         )
         rows = {(item_id, attempt) for item_id, attempt in cursor.fetchall()}
         cursor.close()
+        # The read is done; the first inference can run minutes, so do not
+        # sit on an idle-in-transaction connection through it.
+        connection.rollback()
         return rows
 
     def _store_output(

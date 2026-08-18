@@ -33,6 +33,7 @@ def client():
 
 def _wipe_tables(connection) -> None:
     cursor = connection.cursor()
+    cursor.execute("DELETE FROM governance_round_exam_runs")
     cursor.execute("DELETE FROM grading_outputs")
     cursor.execute("DELETE FROM grading_runs")
     cursor.execute("DELETE FROM exam_outputs")

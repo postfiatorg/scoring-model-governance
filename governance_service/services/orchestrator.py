@@ -2,14 +2,14 @@
 
 G.5.1 delivered the lifecycle backbone: the round states, their restart
 classification, the persistence helpers, and the stage pipeline the G.5
-steps fill in with real behavior. Every stage except the exam and
-grading wiring is real: the freeze (G.5.2, ``round_package``), the
-announcement (G.5.3, ``announcement``), the judge draw (G.5.4,
-``judge_draw``), the withholding hold with final publication (G.5.5,
-``final_publication``), and the decision (G.5.6, ``decision``). The exam
-and grading stages — wiring the G.3 and G.4 engines into the round —
-raise StageNotImplemented until they land, so a prematurely triggered
-round fails explicitly instead of faking progress.
+steps fill in with real behavior. Every stage except the grading wiring
+is real: the freeze (G.5.2, ``round_package``), the announcement (G.5.3,
+``announcement``), the judge draw (G.5.4, ``judge_draw``), the exam
+(G.5.8, ``exam_stage``), the withholding hold with final publication
+(G.5.5, ``final_publication``), and the decision (G.5.6, ``decision``).
+The grading stage — wiring the G.4 harness into the round — raises
+StageNotImplemented until G.5.9 lands, so a prematurely triggered round
+fails explicitly instead of faking progress.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -27,6 +27,7 @@ from governance_service.database import get_db
 from governance_service.services import (
     announcement,
     decision,
+    exam_stage,
     final_publication,
     judge_draw,
     round_package,
@@ -403,10 +404,10 @@ class RoundOrchestrator:
         judge_draw.draw_judge(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _run_exam(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("exam", "a later G.5 step")
+        exam_stage.run_exam(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _grade(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("grading", "a later G.5 step")
+        raise StageNotImplemented("grading", "G.5.9")
 
     def _hold_outputs(self, conn, round_ctx) -> None:
         final_publication.hold_outputs(conn, round_ctx["id"])

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 MANIFEST_VERSION = 1
 BUNDLE_FILE_PATH = "bundle.json"
 MODEL_REQUEST_FILE_PATH = "inputs/model_request.json"
+VALIDATOR_MAP_FILE_PATH = "inputs/validator_map.json"
 INPUT_PACKAGE_KIND = "input"
 
 # The rounds endpoint's own page-size cap (scoring_service/api/scoring.py).
@@ -199,15 +200,17 @@ def _fetch_rounds_until_window(client: httpx.Client, window: int) -> list[dict]:
 
 
 
-def fetch_exam_request(
-    client: httpx.Client, item: VerifiedHistoricalItem
+def fetch_package_files(
+    client: httpx.Client,
+    item: VerifiedHistoricalItem,
+    file_paths: tuple[str, ...],
 ) -> dict[str, Any]:
-    """One historical item's frozen model request, hash-verified on fetch.
+    """Named files of one historical package, hash-verified on fetch.
 
-    The exam engine consumes requests, not references; this re-fetches the
-    package boundary (bundle hash against ``input_package_hash``) and the
-    request file (against its ``file_hashes`` entry) so an exam can never
-    run on bytes that drifted since corpus assembly.
+    Consumers work on contents, not references; this re-fetches the
+    package boundary (bundle hash against ``input_package_hash``) and each
+    requested file (against its ``file_hashes`` entry) so nothing can run
+    on bytes that drifted since corpus assembly.
     """
     bundle = _fetch_package_file(
         client, item.round_number, item.input_package_cid, BUNDLE_FILE_PATH
@@ -220,19 +223,22 @@ def fetch_exam_request(
         bundle,
         {"round_number": item.round_number},
     )
-    expected = file_hashes.get(MODEL_REQUEST_FILE_PATH)
-    if expected is None:
-        raise CorpusVerificationError(
-            f"Round {item.round_number} package has no {MODEL_REQUEST_FILE_PATH}"
+    contents: dict[str, Any] = {}
+    for file_path in file_paths:
+        expected = file_hashes.get(file_path)
+        if expected is None:
+            raise CorpusVerificationError(
+                f"Round {item.round_number} package has no {file_path}"
+            )
+        content = _fetch_package_file(
+            client, item.round_number, item.input_package_cid, file_path
         )
-    request = _fetch_package_file(
-        client, item.round_number, item.input_package_cid, MODEL_REQUEST_FILE_PATH
-    )
-    if canonical_json_hash(request) != expected:
-        raise CorpusVerificationError(
-            f"Round {item.round_number} model request hash mismatch"
-        )
-    return request
+        if canonical_json_hash(content) != expected:
+            raise CorpusVerificationError(
+                f"Round {item.round_number} file {file_path} hash mismatch"
+            )
+        contents[file_path] = content
+    return contents
 
 
 def build_corpus(client: httpx.Client) -> CorpusResult:

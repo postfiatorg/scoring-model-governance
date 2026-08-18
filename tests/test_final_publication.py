@@ -108,6 +108,13 @@ def _seed_runs(db, round_id: int) -> tuple[int, int]:
     exam_run_id = cursor.fetchone()[0]
     cursor.execute(
         """
+        INSERT INTO governance_round_exam_runs (round_id, hf_repo, run_id)
+        VALUES (%s, 'org/model-a', %s)
+        """,
+        (round_id, exam_run_id),
+    )
+    cursor.execute(
+        """
         INSERT INTO exam_outputs
             (run_id, item_id, attempt, response_hash, raw_response, latency_seconds)
         VALUES (%s, 'edge:alpha', 1, %s, '{"v001": {"score": 91}}', 1.5)

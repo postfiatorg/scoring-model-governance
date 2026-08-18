@@ -173,10 +173,16 @@ def build_final_record(
     # canonical serializer pins objects only, like the frozen package.
     files: dict[str, Any] = {"round.json": round_rows[0]}
 
+    # Through the round's exam links, not exam_runs.round_id: a reused
+    # terminal run keeps the round that paid for it, but it answers for
+    # this round through governance_round_exam_runs.
+    exam_columns = ", ".join(f"e.{name}" for name in _EXAM_RUN_COLUMNS)
     cursor.execute(
         f"""
-        SELECT {', '.join(_EXAM_RUN_COLUMNS)} FROM exam_runs
-        WHERE round_id = %s ORDER BY id
+        SELECT {exam_columns}
+        FROM governance_round_exam_runs l
+        JOIN exam_runs e ON e.id = l.run_id
+        WHERE l.round_id = %s ORDER BY e.id
         """,
         (round_id,),
     )

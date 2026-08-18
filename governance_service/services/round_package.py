@@ -61,6 +61,8 @@ PACKAGE_MANIFEST_VERSION = 1
 BUNDLE_FILE_PATH = "bundle.json"
 CANDIDATES_FILE_PATH = "pool/candidates.json"
 PARAMETERS_FILE_PATH = "round/parameters.json"
+CORPUS_MANIFEST_FILE_PATH = "corpus/manifest.json"
+EDGE_CASES_DIR_PATH = "corpus/edge_cases"
 
 # The methodology's freeze eligibility rule: with fewer challengers the
 # drawn judge could never be replaced and no challenger could win.
@@ -209,9 +211,9 @@ def build_package(
     and the bundle whose canonical hash is the package hash. Deterministic
     for identical inputs — assembly itself introduces nothing variable.
     """
-    files: dict[str, Any] = {"corpus/manifest.json": corpus.manifest}
+    files: dict[str, Any] = {CORPUS_MANIFEST_FILE_PATH: corpus.manifest}
     for name, request in sorted(corpus.constructed.items()):
-        files[f"corpus/edge_cases/{name}.json"] = request
+        files[f"{EDGE_CASES_DIR_PATH}/{name}.json"] = request
 
     files[CANDIDATES_FILE_PATH] = {
         "refresh_id": pool.refresh_id,

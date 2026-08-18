@@ -114,6 +114,7 @@ governance_service/
     ├── round_package.py # Frozen round package: assembly, pinning, persistence
     ├── announcement.py  # Governance memo formats + the on-chain announce stage
     ├── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
+    ├── exam_stage.py    # Exam stage: frozen material into the engine, links, verdicts
     ├── final_publication.py # Withholding hold + record pin, receipt, repo publish
     └── decision.py      # Margin-gated verdict, ledger tie-break, blocklist writing
 prompts/                 # Versioned governance grading prompts
@@ -122,6 +123,7 @@ records/                 # Published governance records (pool refreshes, rounds)
 scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_smoke_deploy.py: account-readiness smoke tool
                          # exam_live_validation.py: small real-workspace exam run
+                         # exam_stage_live_validation.py: wired-stage real run
                          # grading_live_validation.py: real-workspace grading run
                          # regrade.py: offline re-grading over frozen material
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
@@ -660,6 +662,42 @@ configured), the commit/reveal window durations, the draw ledger offset,
 the incumbent margin, the round cadence, and the protocol version — what
 a sidecar needs to find and decode governance memos, and what the
 explorer renders without hardcoding constants.
+
+## Exam stage wiring (G.5.8)
+
+`services/exam_stage.py` runs the G.3 exam engine inside a governance
+round (`JUDGE_DRAWN → EXAMINED`). Everything it consumes comes from the
+round's frozen package artifacts, never live state: candidate profiles
+from `pool/candidates.json` (each verified against its recorded profile
+hash), the repeat count from `round/parameters.json`, and the corpus
+from `corpus/manifest.json` — historical items re-fetched by their
+pinned CIDs and verified against the recorded package hashes exactly as
+corpus assembly verified them, constructed cases read from the frozen
+artifacts and checked against the manifest's content hashes. Every pool
+member except the drawn judge — the incumbent included — sits the exam,
+and mechanical disqualification persists each run's verdict; validator
+identity maps come from the historical packages'
+`inputs/validator_map.json` and, for constructed cases, from the
+synthetic derivation.
+
+The runs answering for a round are linked in
+`governance_round_exam_runs` (migration 014): exam runs are reusable
+across rounds and a reused terminal run keeps the `round_id` that paid
+for it, so the decision engine and the final record read the round's
+evidence through the links, never through `exam_runs.round_id`. When a
+round retriggered after an infrastructure failure freezes an identical
+corpus and pool, it therefore reuses every already-paid inference —
+verdicts included — and still decides over a complete evidence set.
+
+Failures keep the engine's two-sided taxonomy: a candidate's own
+failure becomes its disqualification evidence and the exam moves on; an
+infrastructure failure fails the round explicitly, with the manual
+trigger as the recovery path. `scripts/exam_stage_live_validation.py`
+runs the wired stage for real — a fabricated local round over a
+two-item corpus (one live-fetched historical round, one constructed
+case) with one deployed candidate — and proves material reconstruction,
+verdicts, links, and full inference reuse on a re-run; the recorded run
+lives in `docs/ExamStageLiveValidation.md`.
 
 ## CI
 
