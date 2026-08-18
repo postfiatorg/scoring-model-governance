@@ -1,8 +1,11 @@
-"""Round endpoints — the manual round trigger and the package fetch path.
+"""Round endpoints — the rounds API plus the manual round trigger.
 
-The package routes are the HTTPS side of the methodology's fetch contract:
-verifiers fetch over HTTPS with IPFS as the fallback. The full rounds API
-(round list and detail, the sidecar config endpoint) arrives with G.5.7.
+The read surface sidecars and the explorer consume (G.5.7): the round
+list and detail, the frozen-package and final-record artifact routes —
+the HTTPS side of the methodology's fetch-with-IPFS-fallback contract —
+and the participation config endpoint. Record routes enforce the
+output-withholding rule: nothing a round produced is served before its
+commit window closes.
 """
 
 import logging
@@ -16,19 +19,215 @@ from governance_service.api._helpers import (
     check_admin_auth,
     release_round_lock,
 )
+from governance_service.clients.pftl import PFTLClient
+from governance_service.config import settings
 from governance_service.database import get_db
+from governance_service.services.announcement import (
+    GOVERNANCE_PROTOCOL_VERSION,
+    ROUND_ANNOUNCEMENT_TYPE,
+    ROUND_RECEIPT_TYPE,
+)
+from governance_service.services.final_publication import (
+    build_final_record,
+    commit_window_closed,
+)
 from governance_service.services.orchestrator import (
     TRIGGER_MANUAL,
     RoundOrchestrator,
     cleanup_interrupted_rounds,
     get_active_round,
 )
-from governance_service.services.round_package import BUNDLE_FILE_PATH, get_package_file
+from governance_service.services.round_package import (
+    BUNDLE_FILE_PATH,
+    DRAW_LEDGER_OFFSET,
+    INCUMBENT_MARGIN_POINTS,
+    get_package_file,
+)
 from governance_service.services.scheduler import reanchor_schedule
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/governance")
+
+_ROUND_API_COLUMNS = (
+    "round_number",
+    "status",
+    "trigger_source",
+    "package_cid",
+    "package_hash",
+    "frozen_at",
+    "announcement_tx_hash",
+    "announcement_ledger_index",
+    "commit_opens_at",
+    "commit_closes_at",
+    "reveal_opens_at",
+    "reveal_closes_at",
+    "judge_hf_repo",
+    "draw_ledger_index",
+    "draw_ledger_hash",
+    "decision",
+    "winner_hf_repo",
+    "decision_rationale",
+    "decided_at",
+    "final_record_cid",
+    "receipt_tx_hash",
+    "record_commit_url",
+    "error_message",
+    "started_at",
+    "completed_at",
+)
+
+
+def _round_dict(row) -> dict:
+    return {
+        name: value.isoformat() if hasattr(value, "isoformat") else value
+        for name, value in zip(_ROUND_API_COLUMNS, row)
+    }
+
+
+@router.get("/rounds")
+def list_rounds(
+    limit: int = Query(default=settings.default_page_limit, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
+    """List governance rounds, newest first."""
+    conn = get_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT {', '.join(_ROUND_API_COLUMNS)} FROM governance_rounds
+            ORDER BY round_number DESC
+            LIMIT %s OFFSET %s
+            """,
+            (limit, offset),
+        )
+        rounds = [_round_dict(row) for row in cursor.fetchall()]
+        cursor.execute("SELECT COUNT(*) FROM governance_rounds")
+        total = cursor.fetchone()[0]
+        cursor.close()
+    finally:
+        conn.close()
+
+    return JSONResponse(content={
+        "rounds": rounds,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    })
+
+
+@router.get("/rounds/{round_number}/record")
+def get_round_record(round_number: int):
+    """The final record's bundle manifest, re-assembled from round data."""
+    return _record_response(round_number, None)
+
+
+@router.get("/rounds/{round_number}/record/{file_path:path}")
+def get_round_record_file(round_number: int, file_path: str):
+    """One final-record file, re-assembled from round data on demand."""
+    return _record_response(round_number, file_path)
+
+
+def _record_response(round_number: int, file_path: str | None):
+    conn = get_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, commit_closes_at FROM governance_rounds WHERE round_number = %s",
+            (round_number,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": f"Round {round_number} not found"},
+            )
+        round_id, commit_closes_at = row
+        # The withholding rule applies to the API exactly as it applies
+        # to publication: no round output leaves before the commit close.
+        if not commit_window_closed(commit_closes_at):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "error": (
+                        f"Round {round_number} outputs are withheld until "
+                        "its commit window closes"
+                    )
+                },
+            )
+        files, bundle = build_final_record(conn, round_id, round_number)
+    finally:
+        conn.close()
+
+    if file_path is None:
+        return JSONResponse(content=bundle)
+    if file_path not in files:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "error": f"No record file {file_path} for round {round_number}"
+            },
+        )
+    return JSONResponse(content=files[file_path])
+
+
+@router.get("/rounds/{round_number:int}")
+def get_round(round_number: int):
+    """One governance round's full persisted identity."""
+    conn = get_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT {', '.join(_ROUND_API_COLUMNS)} FROM governance_rounds
+            WHERE round_number = %s
+            """,
+            (round_number,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+    finally:
+        conn.close()
+
+    if row is None:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": f"Round {round_number} not found"},
+        )
+    return JSONResponse(content=_round_dict(row))
+
+
+def _foundation_publisher_address() -> str | None:
+    if not settings.pftl_wallet_secret:
+        return None
+    try:
+        return PFTLClient().publisher_address
+    except Exception:
+        logger.warning("Could not derive publisher address for config", exc_info=True)
+        return None
+
+
+@router.get("/config")
+def get_config():
+    """Public read-only configuration for governance participation.
+
+    The chain-discovery fields a sidecar needs to find and decode the
+    on-chain governance memos, plus the frozen-procedure constants the
+    explorer renders without hardcoding.
+    """
+    return JSONResponse(content={
+        "protocol_version": GOVERNANCE_PROTOCOL_VERSION,
+        "round_cadence_days": float(settings.round_cadence_days),
+        "incumbent_margin_points": INCUMBENT_MARGIN_POINTS,
+        "draw_ledger_offset": DRAW_LEDGER_OFFSET,
+        "foundation_publisher_address": _foundation_publisher_address(),
+        "announcement_memo_type": ROUND_ANNOUNCEMENT_TYPE,
+        "receipt_memo_type": ROUND_RECEIPT_TYPE,
+        "commit_window_seconds": settings.round_commit_window_seconds,
+        "reveal_window_seconds": settings.round_reveal_window_seconds,
+    })
 
 
 @router.get("/rounds/{round_number}/package")

@@ -104,6 +104,17 @@ class FinalPublicationError(RuntimeError):
     """The hold or the publication could not proceed."""
 
 
+def commit_window_closed(commit_closes_at: datetime | None) -> bool:
+    """The withholding predicate: outputs leave only past a recorded close.
+
+    The single definition both publication and the API gate on — the
+    rule must never diverge between the two.
+    """
+    return commit_closes_at is not None and commit_closes_at <= datetime.now(
+        timezone.utc
+    )
+
+
 def hold_outputs(conn, round_id: int) -> None:
     """The fail-closed park precondition: a recorded commit close.
 
@@ -313,9 +324,7 @@ def publish_round_record(
     # Last line of defense for the withholding invariant: the state
     # machine's release gate is the authority, but publishing before the
     # recorded commit close would break verification at the root.
-    if state["commit_closes_at"] is None or state["commit_closes_at"] > datetime.now(
-        timezone.utc
-    ):
+    if not commit_window_closed(state["commit_closes_at"]):
         raise FinalPublicationError(
             f"Round id {round_id} commit window has not closed — outputs stay withheld"
         )

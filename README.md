@@ -74,7 +74,8 @@ governance_service/
 │   ├── _helpers.py      # Admin auth and advisory-lock preconditions
 │   ├── health.py        # /health liveness endpoint
 │   ├── pool.py          # Public pool/refresh/blocklist/health reads + refresh trigger
-│   └── rounds.py        # Admin-guarded manual round trigger
+│   └── rounds.py        # Rounds API: list/detail, package + record routes, config,
+│                        # and the admin-guarded manual round trigger
 ├── clients/
 │   ├── pftl.py          # PFTL chain client: publisher wallet, typed memo submission
 │   ├── livebench.py     # Leaderboard data fetch, strict parsing, site-exact averaging
@@ -630,6 +631,35 @@ hand edit. The verdict, winner, and full rationale persist on the round
 (migration 013, which also adds the per-candidate `final_grade` the
 grading-stage wiring will populate) and join the final record bundle and
 the repository record document.
+
+## Rounds API (G.5.7)
+
+`api/rounds.py` is the read-only surface sidecars and the explorer
+consume:
+
+| Endpoint | Returns |
+|----------|---------|
+| `GET /api/governance/rounds` | Round list, newest first, shared pagination shape |
+| `GET /api/governance/rounds/{round}` | One round's full persisted identity |
+| `GET /api/governance/rounds/{round}/package[/{path}]` | Frozen-package manifest / file (public at announcement) |
+| `GET /api/governance/rounds/{round}/record[/{path}]` | Final-record manifest / file (withheld until commit close) |
+| `GET /api/governance/config` | The participation surface for sidecars and the explorer |
+
+The final-record routes re-assemble the record bundle deterministically
+from persisted round data on demand — nothing is stored twice — and
+enforce the output-withholding rule at the API boundary through the same
+`commit_window_closed` predicate publication gates on: a round's outputs
+are refused (403) until its recorded commit window has closed. The
+frozen-package routes from G.5.2 stay as they are: freeze-time artifacts
+are public by design the moment the round is announced.
+
+`GET /api/governance/config` is the participation surface, mirroring the
+scoring service's verifier configuration endpoint: the governance memo
+types, the foundation publisher address (null when no wallet is
+configured), the commit/reveal window durations, the draw ledger offset,
+the incumbent margin, the round cadence, and the protocol version — what
+a sidecar needs to find and decode governance memos, and what the
+explorer renders without hardcoding constants.
 
 ## CI
 
