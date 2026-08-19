@@ -115,6 +115,7 @@ governance_service/
     ├── announcement.py  # Governance memo formats + the on-chain announce stage
     ├── judge_draw.py    # Ledger-randomness judge draw + redraw ordering
     ├── exam_stage.py    # Exam stage: frozen material into the engine, links, verdicts
+    ├── grading_stage.py # Grading stage: blinded pairs, judge bar, redraw, grades
     ├── final_publication.py # Withholding hold + record pin, receipt, repo publish
     └── decision.py      # Margin-gated verdict, ledger tie-break, blocklist writing
 prompts/                 # Versioned governance grading prompts
@@ -125,6 +126,7 @@ scripts/                 # check_vendor_freshness.py: vendored-code drift check
                          # exam_live_validation.py: small real-workspace exam run
                          # exam_stage_live_validation.py: wired-stage real run
                          # grading_live_validation.py: real-workspace grading run
+                         # grading_stage_live_validation.py: wired-grading real run
                          # regrade.py: offline re-grading over frozen material
 tests/                   # pytest suite (real database for DB paths, HTTP mocked
                          # over snapshot fixtures of live leaderboard data)
@@ -463,12 +465,14 @@ of GPU work and is never discarded on a service restart. A parked round
 (`AWAITING_COMMIT_CLOSE`) is released only once its recorded
 `commit_closes_at` has passed — the fail-closed output-withholding hold.
 Rounds never overlap: a new round starts only when no round is active.
-The stage handlers themselves land with the remaining G.5 steps; until a
-stage exists, a triggered round fails explicitly with a
-`StageNotImplemented` message naming the milestone that delivers it. Exam
-and grading runs carry a nullable `round_id` linking them to the
-governance round that paid for them; runs reused across rounds keep the
-round that produced them.
+Every stage handler is real (the exam landed with G.5.8, the grading
+with G.5.9), so a triggered round runs end to end; a stage that
+determines the round cannot continue under its frozen rules — today the
+judge-redraw exhaustion — raises `RoundAbandoned`, and the pipeline
+closes the round as `ABANDONED` instead of `FAILED`. Exam and grading
+runs carry a nullable `round_id` linking them to the governance round
+that paid for them; runs reused across rounds keep the round that
+produced them.
 
 `services/scheduler.py` adapts the scoring service's scheduler
 discipline: the persisted `governance_round_schedule.next_due_at`
@@ -698,6 +702,43 @@ two-item corpus (one live-fetched historical round, one constructed
 case) with one deployed candidate — and proves material reconstruction,
 verdicts, links, and full inference reuse on a re-run; the recorded run
 lives in `docs/ExamStageLiveValidation.md`.
+
+## Grading stage wiring (G.5.9)
+
+`services/grading_stage.py` runs the G.4 grading harness inside a
+governance round (`EXAMINED → GRADED`) — the last stage of the
+execution pipeline, after which a triggered round runs end to end. It
+derives identity-blinded grading pairs from the round's linked
+surviving exam answers (one canonical answer per corpus item per
+survivor, addressed by content hash so identical answers grade once and
+the judge cannot favor a model it recognizes), runs the drawn judge
+through the grading engine at the frozen repeat count, and holds the
+judge to its mechanical bar: every output parses under the frozen
+defect schema and every pair's repeats carry one identical hash. On a
+judge's failure the frozen redraw ordering promotes the next
+challenger — the promoted judge and every failed judge leaving the
+competition and the pairs — and exhausting the challengers raises
+`RoundAbandoned`, with the failed judges booked into the standing
+blocklist as the abandonment's only outcome.
+
+For a passing judge every grade is computed in code — the production
+answer parser, the mechanical checker, the defect-schema parser, and
+grade formula v1: the offline re-grading chain over stored material, so
+any verifier reproduces identical grades. Grades persist per round on
+`governance_round_exam_runs` (migration 016, which also drops the
+never-used `exam_runs.final_grade`) — never on the shared exam runs,
+whose rows sit inside earlier rounds' published records — and every
+grading run a round pays for or reuses is linked in
+`governance_round_grading_runs` with the judge's mechanical outcome,
+which the redraw resume, the decision's failed-judge exclusion and
+blocklist booking, and the final record all read back. The record
+bundle gains `grading/grades.json` with each survivor's final grade and
+complete receipts.
+
+`scripts/grading_stage_live_validation.py` runs the wired stage for
+real — reusing the exam-stage validation's fabricated round shape with
+one examined candidate and one genuinely deployed challenger judge —
+and the recorded run lives in `docs/GradingStageLiveValidation.md`.
 
 ## CI
 

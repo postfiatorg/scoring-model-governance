@@ -24,9 +24,10 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Collection
 
 from governance_service.services.disqualification import VERDICT_SURVIVED
+from governance_service.services.grading_engine import JUDGE_OUTCOME_FAILED
 from governance_service.services.judge_draw import map_hash_to_challenger
 from governance_service.services.round_package import (
     CANDIDATES_FILE_PATH,
@@ -77,14 +78,17 @@ def decide(
     margin: Decimal,
     draw_ledger_hash: str,
     judge_hf_repo: str | None,
+    failed_judges: Collection[str] = (),
 ) -> DecisionResult:
     """The pure verdict from one round's examined candidates.
 
     ``candidates`` are the round's examined pool members. The drawn judge
-    never competes; a redraw-judge's exam run stays in the record but is
-    excluded here.
+    never competes, and a judge that failed its mechanical bar sits out
+    the rest of the round entirely — a redraw-judge's exam run stays in
+    the record but is excluded here.
     """
-    competing = [c for c in candidates if c.hf_repo != judge_hf_repo]
+    out = set(failed_judges) | {judge_hf_repo}
+    competing = [c for c in candidates if c.hf_repo not in out]
     incumbent = next(
         (c for c in competing if c.hf_repo == incumbent_hf_repo), None
     )
@@ -116,6 +120,7 @@ def decide(
         "incumbent_verdict": incumbent.verdict,
         "margin": str(margin),
         "judge": judge_hf_repo,
+        "failed_judges": sorted(failed_judges),
         "grades": {
             c.hf_repo: str(c.final_grade) if c.final_grade is not None else None
             for c in competing
@@ -207,11 +212,13 @@ def _load_round(conn, round_id: int) -> dict[str, Any]:
 def _load_candidates(conn, round_id: int) -> list[ExaminedCandidate]:
     # Through the round's exam links, not exam_runs.round_id: a reused
     # terminal run keeps the round that paid for it, but it answers for
-    # this round through governance_round_exam_runs.
+    # this round through governance_round_exam_runs — and the grade is
+    # the link's, never the shared run's, so rounds cannot rewrite each
+    # other's published evidence.
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT r.hf_repo, r.revision, r.verdict, r.final_grade
+        SELECT r.hf_repo, r.revision, r.verdict, l.final_grade
         FROM governance_round_exam_runs l
         JOIN exam_runs r ON r.id = l.run_id
         WHERE l.round_id = %s
@@ -286,6 +293,63 @@ def _book_blocklist(conn, round_number: int, candidates: list[ExaminedCandidate]
     return entries
 
 
+def _load_failed_judges(conn, round_id: int) -> list[str]:
+    """Judges the grading stage recorded as failing their mechanical bar."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT DISTINCT hf_repo FROM governance_round_grading_runs
+        WHERE round_id = %s AND outcome = %s
+        ORDER BY hf_repo
+        """,
+        (round_id, JUDGE_OUTCOME_FAILED),
+    )
+    failed = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.rollback()
+    return failed
+
+
+def book_failed_judges(conn, round_number: int, round_id: int) -> list[dict]:
+    """Book every judge that failed its mechanical bar, at the round's close.
+
+    The failed judges come from the round's grading links, where the
+    grading stage recorded each linked judge's outcome; the revision is
+    the grading run's own — the pinned artifact that failed to judge.
+    Append-only and idempotent: the decision books a completed round's
+    entries, and the grading stage books an exhaustion-abandoned round's
+    before it raises — the methodology's only outcome for that exit.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT DISTINCT g.hf_repo, g.revision
+        FROM governance_round_grading_runs l
+        JOIN grading_runs g ON g.id = l.run_id
+        WHERE l.round_id = %s AND l.outcome = %s
+        ORDER BY g.hf_repo
+        """,
+        (round_id, JUDGE_OUTCOME_FAILED),
+    )
+    rows = cursor.fetchall()
+    entries = []
+    for hf_repo, revision in rows:
+        reason = (
+            f"Failed the judge mechanical bar in governance round {round_number}"
+        )
+        cursor.execute(
+            """
+            INSERT INTO blocklist (hf_repo, revision, reason, round_reference)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (hf_repo, revision) DO NOTHING
+            """,
+            (hf_repo, revision, reason, f"governance round {round_number}"),
+        )
+        entries.append({"hf_repo": hf_repo, "revision": revision, "reason": reason})
+    cursor.close()
+    return entries
+
+
 def decide_round(conn, round_id: int, round_number: int) -> dict[str, Any]:
     """Compute and persist the round's verdict from its persisted evidence.
 
@@ -332,8 +396,10 @@ def decide_round(conn, round_id: int, round_number: int) -> dict[str, Any]:
         margin=margin,
         draw_ledger_hash=round_state["draw_ledger_hash"],
         judge_hf_repo=round_state["judge_hf_repo"],
+        failed_judges=_load_failed_judges(conn, round_id),
     )
     blocklist_entries = _book_blocklist(conn, round_number, candidates)
+    blocklist_entries += book_failed_judges(conn, round_number, round_id)
     rationale = dict(result.rationale)
     if blocklist_entries:
         rationale["blocklist_entries"] = blocklist_entries

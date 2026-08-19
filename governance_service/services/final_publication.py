@@ -78,6 +78,7 @@ _EXAM_RUN_COLUMNS = (
     "revision",
     "profile_hash",
     "corpus_hash",
+    "repeats",
     "status",
     "candidate_failure",
     "verdict",
@@ -93,6 +94,7 @@ _GRADING_RUN_COLUMNS = (
     "revision",
     "profile_hash",
     "material_hash",
+    "repeats",
     "status",
     "judge_failure",
     "started_at",
@@ -189,15 +191,39 @@ def build_final_record(
     exam_runs = _rows(cursor, _EXAM_RUN_COLUMNS)
     files["exam/runs.json"] = {"runs": exam_runs}
 
+    # Grading runs come through the round's links too, carrying each
+    # linked judge's recorded mechanical outcome alongside the run row.
+    grading_columns = ", ".join(f"g.{name}" for name in _GRADING_RUN_COLUMNS)
     cursor.execute(
         f"""
-        SELECT {', '.join(_GRADING_RUN_COLUMNS)} FROM grading_runs
-        WHERE round_id = %s ORDER BY id
+        SELECT {grading_columns}, l.outcome
+        FROM governance_round_grading_runs l
+        JOIN grading_runs g ON g.id = l.run_id
+        WHERE l.round_id = %s ORDER BY g.id
         """,
         (round_id,),
     )
-    grading_runs = _rows(cursor, _GRADING_RUN_COLUMNS)
+    grading_runs = _rows(cursor, _GRADING_RUN_COLUMNS + ("judge_outcome",))
     files["grading/runs.json"] = {"runs": grading_runs}
+
+    cursor.execute(
+        """
+        SELECT hf_repo, final_grade, grade_receipts
+        FROM governance_round_exam_runs
+        WHERE round_id = %s AND final_grade IS NOT NULL
+        ORDER BY hf_repo
+        """,
+        (round_id,),
+    )
+    grades = [
+        {
+            "hf_repo": hf_repo,
+            "final_grade": str(final_grade),
+            "receipts": receipts,
+        }
+        for hf_repo, final_grade, receipts in cursor.fetchall()
+    ]
+    files["grading/grades.json"] = {"grades": grades}
     cursor.close()
 
     for run in exam_runs:

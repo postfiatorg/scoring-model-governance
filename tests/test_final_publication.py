@@ -133,6 +133,13 @@ def _seed_runs(db, round_id: int) -> tuple[int, int]:
     grading_run_id = cursor.fetchone()[0]
     cursor.execute(
         """
+        INSERT INTO governance_round_grading_runs (round_id, run_id, hf_repo, outcome)
+        VALUES (%s, %s, 'org/judge', 'PASSED')
+        """,
+        (round_id, grading_run_id),
+    )
+    cursor.execute(
+        """
         INSERT INTO grading_outputs
             (run_id, item_id, answer_hash, attempt, response_hash, raw_response,
              latency_seconds)

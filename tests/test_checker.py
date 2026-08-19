@@ -153,7 +153,7 @@ def _check(request, rules_path, overrides=None, drop=(), extra=None):
 
 def test_shipped_rules_cover_the_vendored_real_round():
     rows = load_rules()
-    assert {row.version for row in rows.values()} == {"v5", "v8", "v9"}
+    assert {row.version for row in rows.values()} == {"v5", "v8", "v9", "v10"}
     assert resolve_version(_template()).version == "v5"
 
 
@@ -456,6 +456,19 @@ def test_feature_absent_from_every_entry_fails_closed(tmp_path):
     request = _request(validators)
     with pytest.raises(CheckerError):
         _check(request, rules)
+
+
+def test_field_present_but_null_everywhere_is_data_not_miscuration(tmp_path):
+    """Production entries can carry a flat field as null on every
+    validator (devnet's identity status); the guard must not read that
+    as a mis-curated row — the null values already exclude every
+    validator from the dimension's comparisons."""
+    rules = _rules_file(tmp_path, equality={"identity": ["domain", "identity"]})
+    validators = [
+        {**_validator(vid), "identity": None} for vid in ("v001", "v002")
+    ]
+    request = _request(validators)
+    assert _check(request, rules) == ()
 
 
 def test_null_evidence_is_excluded_not_compared(tmp_path):

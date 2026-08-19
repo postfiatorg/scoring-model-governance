@@ -80,7 +80,7 @@ def _load_judge(conn, round_id: int) -> str:
     return row[0]
 
 
-def _frozen_profile(entry: Any, role: str) -> RuntimeProfile:
+def frozen_profile(entry: Any, role: str) -> RuntimeProfile:
     if not isinstance(entry, dict) or "profile" not in entry:
         raise ExamStageError(f"Frozen {role} entry carries no profile")
     profile = RuntimeProfile.model_validate(entry["profile"])
@@ -101,12 +101,12 @@ def frozen_examinees(
     never drawn — so an unknown judge means the round's persisted draw
     and its frozen pool disagree, and the exam refuses to run.
     """
-    incumbent = _frozen_profile(candidates_file.get("incumbent"), "incumbent")
+    incumbent = frozen_profile(candidates_file.get("incumbent"), "incumbent")
     challengers_entries = candidates_file.get("challengers")
     if not isinstance(challengers_entries, list) or not challengers_entries:
         raise ExamStageError("Frozen package carries no challengers")
     challengers = [
-        _frozen_profile(entry, "challenger") for entry in challengers_entries
+        frozen_profile(entry, "challenger") for entry in challengers_entries
     ]
 
     if judge_hf_repo == incumbent.hf_repo:
@@ -250,7 +250,7 @@ def _existing_verdict(conn, run_id: int, repeats: int) -> str | None:
     return row[0]
 
 
-def _default_client() -> httpx.Client:
+def default_client() -> httpx.Client:
     return httpx.Client(timeout=settings.http_timeout_seconds)
 
 
@@ -286,7 +286,7 @@ def run_exam(
         )
 
     examinees = frozen_examinees(candidates_file, judge_hf_repo)
-    with (client_factory or _default_client)() as client:
+    with (client_factory or default_client)() as client:
         items, validator_maps = load_frozen_exam_material(
             conn, round_number, client
         )

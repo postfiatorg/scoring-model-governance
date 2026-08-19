@@ -63,6 +63,13 @@ RUN_FAILED = "FAILED"
 VERDICT_PASS = "PASS"
 VERDICT_FAIL = "FAIL"
 
+# The per-round link outcome vocabulary: a linked judge's fate under its
+# mechanical bar, persisted by round orchestration on
+# governance_round_grading_runs and read back by the redraw resume and
+# the decision's failed-judge exclusion and blocklist booking.
+JUDGE_OUTCOME_PASSED = "PASSED"
+JUDGE_OUTCOME_FAILED = "FAILED"
+
 RULE_SCHEMA = "defect_schema_validity"
 RULE_DETERMINISM = "repeat_determinism"
 
@@ -127,7 +134,7 @@ class GradingEngine:
     ) -> int:
         """Grade every pair with this judge; returns the run id.
 
-        Idempotent per (judge profile, material): a COMPLETED or
+        Idempotent per (judge profile, material, repeats): a COMPLETED or
         JUDGE_FAILED run is returned without re-running, and an
         interrupted or infrastructure-aborted run resumes, skipping the
         inferences it already stored. The judge's own failure marks the
@@ -147,7 +154,7 @@ class GradingEngine:
             )
         validate_deployable(judge)
         run_id, already_terminal = self._get_or_resume_run(
-            connection, judge, material_hash(pairs), round_id
+            connection, judge, material_hash(pairs), repeats, round_id
         )
         if already_terminal:
             logger.info(
@@ -201,16 +208,21 @@ class GradingEngine:
         connection,
         judge: RuntimeProfile,
         material: str,
+        repeats: int,
         round_id: int | None = None,
     ) -> tuple[int, bool]:
+        # The repeat count is part of the identity: outputs stored under
+        # a different repeat count would fail the judge's determinism
+        # rule on attempt counts alone, so they are never reused.
         cursor = connection.cursor()
         cursor.execute(
             """
             SELECT id, status FROM grading_runs
             WHERE hf_repo = %s AND profile_hash = %s AND material_hash = %s
+                AND repeats = %s
             ORDER BY id DESC LIMIT 1
             """,
-            (judge.hf_repo, judge.content_hash(), material),
+            (judge.hf_repo, judge.content_hash(), material, repeats),
         )
         row = cursor.fetchone()
         if row is not None:
@@ -233,14 +245,16 @@ class GradingEngine:
 
         cursor.execute(
             """
-            INSERT INTO grading_runs (hf_repo, revision, profile_hash, material_hash, status, round_id)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO grading_runs
+                (hf_repo, revision, profile_hash, material_hash, repeats, status, round_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
             """,
             (
                 judge.hf_repo,
                 judge.revision,
                 judge.content_hash(),
                 material,
+                repeats,
                 RUN_RUNNING,
                 round_id,
             ),

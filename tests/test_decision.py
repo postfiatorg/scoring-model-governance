@@ -201,19 +201,19 @@ def _seed_graded_run(
         """
         INSERT INTO exam_runs
             (hf_repo, revision, profile_hash, corpus_hash, status, round_id,
-             verdict, final_grade)
-        VALUES (%s, %s, 'p1', 'c1', 'COMPLETED', %s, %s, %s)
+             verdict)
+        VALUES (%s, %s, 'p1', 'c1', 'COMPLETED', %s, %s)
         RETURNING id
         """,
-        (hf_repo, revision, round_id, verdict, grade),
+        (hf_repo, revision, round_id, verdict),
     )
     run_id = cursor.fetchone()[0]
     cursor.execute(
         """
-        INSERT INTO governance_round_exam_runs (round_id, hf_repo, run_id)
-        VALUES (%s, %s, %s)
+        INSERT INTO governance_round_exam_runs (round_id, hf_repo, run_id, final_grade)
+        VALUES (%s, %s, %s, %s)
         """,
-        (round_id, hf_repo, run_id),
+        (round_id, hf_repo, run_id, grade),
     )
     db.commit()
     cursor.close()

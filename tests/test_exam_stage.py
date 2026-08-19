@@ -168,8 +168,9 @@ def _seed_drawn_round(
         """
         INSERT INTO governance_rounds
             (round_number, status, trigger_source, announcement_ledger_index,
-             judge_hf_repo, draw_ledger_index, draw_ledger_hash)
-        VALUES (%s, %s, %s, 5000000, %s, 5000010, %s)
+             judge_hf_repo, draw_ledger_index, draw_ledger_hash,
+             commit_closes_at)
+        VALUES (%s, %s, %s, 5000000, %s, 5000010, %s, NOW() + INTERVAL '1 day')
         RETURNING id
         """,
         (round_number, RoundState.JUDGE_DRAWN.value, TRIGGER_MANUAL, judge, "A" * 64),
@@ -513,15 +514,20 @@ class TestPipelineWiring:
         monkeypatch.setattr(
             exam_stage, "ExamEngine", lambda: _engine(endpoint)
         )
-        monkeypatch.setattr(exam_stage, "_default_client", _client_factory())
+        monkeypatch.setattr(exam_stage, "default_client", _client_factory())
+        graded_rounds = []
+        monkeypatch.setattr(
+            "governance_service.services.grading_stage.run_grading",
+            lambda conn, rid, rnum: graded_rounds.append(rid),
+        )
 
         results = RoundOrchestrator().resume_rounds()
 
-        # The exam ran and persisted; the round then failed at the
-        # grading stub, which is the current pipeline boundary (G.5.9).
+        # The exam ran and persisted; the round then went on through the
+        # (stubbed) grading stage and parked for its commit window.
         assert len(results) == 1
-        assert results[0]["status"] == RoundState.FAILED.value
-        assert "G.5.9" in results[0]["error"]
+        assert results[0]["status"] == RoundState.AWAITING_COMMIT_CLOSE.value
+        assert graded_rounds == [round_id]
         runs = _runs(db)
         assert {run["hf_repo"] for run in runs} == {
             INCUMBENT_REPO,

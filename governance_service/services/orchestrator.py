@@ -2,14 +2,17 @@
 
 G.5.1 delivered the lifecycle backbone: the round states, their restart
 classification, the persistence helpers, and the stage pipeline the G.5
-steps fill in with real behavior. Every stage except the grading wiring
-is real: the freeze (G.5.2, ``round_package``), the announcement (G.5.3,
-``announcement``), the judge draw (G.5.4, ``judge_draw``), the exam
-(G.5.8, ``exam_stage``), the withholding hold with final publication
-(G.5.5, ``final_publication``), and the decision (G.5.6, ``decision``).
-The grading stage — wiring the G.4 harness into the round — raises
-StageNotImplemented until G.5.9 lands, so a prematurely triggered round
-fails explicitly instead of faking progress.
+steps filled in with real behavior. Every stage is real: the freeze
+(G.5.2, ``round_package``), the announcement (G.5.3, ``announcement``),
+the judge draw (G.5.4, ``judge_draw``), the exam (G.5.8, ``exam_stage``),
+the grading (G.5.9, ``grading_stage``), the withholding hold with final
+publication (G.5.5, ``final_publication``), and the decision (G.5.6,
+``decision``) — a triggered round runs end to end.
+
+A stage can end a round two ways: an exception fails it (FAILED, with
+the manual trigger as recovery), while raising ``RoundAbandoned``
+closes it as ABANDONED — the methodology's exit for a round that cannot
+continue by its own frozen rules, today the judge-redraw exhaustion.
 
 Restart semantics follow the methodology's freeze contract: a round that
 dies before its freeze completes published nothing and is abandoned by
@@ -29,6 +32,7 @@ from governance_service.services import (
     decision,
     exam_stage,
     final_publication,
+    grading_stage,
     judge_draw,
     round_package,
 )
@@ -91,13 +95,13 @@ _PUBLICATION_PIPELINE = (
 )
 
 
-class StageNotImplemented(RuntimeError):
-    """A pipeline stage whose behavior arrives with a later milestone."""
+class RoundAbandoned(RuntimeError):
+    """A stage determined the round cannot continue under its frozen rules.
 
-    def __init__(self, stage: str, milestone: str):
-        super().__init__(
-            f"Round stage '{stage}' is not implemented yet (arrives with {milestone})"
-        )
+    Raised only after the abandonment's own bookkeeping (for the judge
+    exhaustion: the failed judges' blocklist entries) is persisted; the
+    pipeline then closes the round as ABANDONED instead of FAILED.
+    """
 
 
 def _next_round_number(conn) -> int:
@@ -159,6 +163,18 @@ def _fail_round(conn, round_id: int, error: str) -> None:
         round_id,
         status=RoundState.FAILED.value,
         error_message=error,
+        completed_at=datetime.now(timezone.utc),
+    )
+
+
+def _abandon_round(conn, round_id: int, reason: str) -> None:
+    logger.warning("Governance round %d abandoned: %s", round_id, reason)
+    conn.rollback()
+    _update_round(
+        conn,
+        round_id,
+        status=RoundState.ABANDONED.value,
+        error_message=reason,
         completed_at=datetime.now(timezone.utc),
     )
 
@@ -360,6 +376,11 @@ class RoundOrchestrator:
                 continue
             try:
                 getattr(self, handler_name)(conn, round_ctx)
+            except RoundAbandoned as exc:
+                _abandon_round(conn, round_id, str(exc))
+                result["status"] = RoundState.ABANDONED.value
+                result["error"] = str(exc)
+                return result
             except Exception as exc:
                 if pipeline is _PUBLICATION_PIPELINE:
                     # Publication steps are idempotent from persisted
@@ -389,8 +410,6 @@ class RoundOrchestrator:
         return result
 
     # -- stage handlers -------------------------------------------------------
-    # Each remaining G.5 step replaces one of these with the real behavior;
-    # the pipeline, persistence, and failure discipline stay as they are.
     # Handlers must be safe to re-run: a crash between a handler finishing
     # and its status write re-enters the same handler on resume.
 
@@ -407,7 +426,7 @@ class RoundOrchestrator:
         exam_stage.run_exam(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _grade(self, conn, round_ctx) -> None:
-        raise StageNotImplemented("grading", "G.5.9")
+        grading_stage.run_grading(conn, round_ctx["id"], round_ctx["round_number"])
 
     def _hold_outputs(self, conn, round_ctx) -> None:
         final_publication.hold_outputs(conn, round_ctx["id"])

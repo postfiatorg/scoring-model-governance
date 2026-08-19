@@ -16,8 +16,8 @@
 # Rows exist for the versions the exam corpus can currently contain: v5
 # (the constructed edge-case catalogue's template, verified against the
 # vendored production request from testnet round 15) and the current-era
-# v8 and v9. A historical corpus item on another version fail-closes
-# with the missing row named; curating that row is the fix.
+# v8, v9, and v10. A historical corpus item on another version
+# fail-closes with the missing row named; curating that row is the fix.
 
 v5:
   # v5 states no equality, ordering, ceiling, or banding rule — its
@@ -60,6 +60,32 @@ v9:
   # out: version recency and accountability comparisons are hedged
   # prose, not closed-form.
   instructions_sha256: 088e403cffb3fb82000427b1a73331553e0bc399938ea416c7745aba91a19575
+  equality:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    software: [server_version, base_fee]
+    diversity: [concentration_country_count, concentration_family_count]
+    identity: [domain, domain_verified, identity]
+  ordering:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    diversity: [concentration_country_count, concentration_family_count]
+  consensus_ceiling: worst_window_floor
+  multiples_of_5: [reliability, software, diversity, identity]
+
+v10:
+  # v10 is v9 plus the per-window `incomplete` data-quality flag, and
+  # its text makes the flag scoring-neutral in both directions ("never
+  # use a true flag to excuse degraded agreement evidence", "never
+  # penalize a validator merely because a window is flagged"), so v9's
+  # rules carry over unchanged. Equality stays flag-aware automatically:
+  # window features compare as whole objects, so differing flags stop
+  # two validators from counting as identical evidence. Ordering keeps
+  # comparing score and missed only — a dominance flip justified by
+  # nothing but the flag is exactly what the text forbids. The new
+  # output-key wording ("never emit an empty, whitespace, or
+  # quote-character key") is already covered by the structural checks.
+  instructions_sha256: b95342847589fcf6090e44880246fdbe6df7da027f198b0166890608865efb1f
   equality:
     consensus: [agreement_1h, agreement_24h, agreement_30d]
     reliability: [agreement_1h, agreement_24h, agreement_30d]

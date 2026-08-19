@@ -83,6 +83,19 @@ never enter a row and remain the judge's. The current rows:
   endpoint), and identity equality on the accountability fields.
   Software and identity ordering stay out: version recency and
   accountability comparisons are hedged prose, not closed-form.
+- **v10** — v9 plus the per-window `incomplete` data-quality flag
+  (curated 2026-08-18, surfaced live by the grading-stage validation
+  fail-closing on devnet round 324). The rules carry over unchanged
+  because the version's own text makes the flag scoring-neutral in both
+  directions: "never use a true flag to excuse degraded agreement
+  evidence" and "never penalize a validator merely because a window is
+  flagged". Equality is flag-aware automatically — window features
+  compare as whole objects, so validators whose numbers match but whose
+  flags differ are no longer identical evidence and fall to the judge.
+  Ordering keeps comparing score and missed only: a dominance flip
+  justified by nothing but the flag is exactly what the text forbids.
+  The added output-key wording ("never emit an empty, whitespace, or
+  quote-character key") is already covered by the structural checks.
 
 Two stated rules are deliberately not encoded. v9's "when only the
 30-day window is degraded and the recent windows are clean, score at

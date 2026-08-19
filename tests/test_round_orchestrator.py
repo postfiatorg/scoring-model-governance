@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from governance_service.services.orchestrator import (
     TRIGGER_MANUAL,
     TRIGGER_SCHEDULED,
+    RoundAbandoned,
     RoundOrchestrator,
     RoundState,
     cleanup_interrupted_rounds,
@@ -120,28 +121,18 @@ class TestLifecycleProgression:
 
         assert _round_row(db, result["round_id"])["trigger_source"] == TRIGGER_MANUAL
 
-    def test_unbuilt_stages_fail_the_round_explicitly(self, db):
-        class _ThroughExam(RoundOrchestrator):
-            def _freeze(self, conn, round_ctx):
-                pass
+    def test_round_abandoned_closes_the_round_as_abandoned(self, db):
+        class _AbandonsAtGrading(_WalkingOrchestrator):
+            def _grade(self, conn, round_ctx):
+                raise RoundAbandoned("judge redraw exhausted the challengers")
 
-            def _announce(self, conn, round_ctx):
-                pass
+        result = _AbandonsAtGrading().run_round(TRIGGER_SCHEDULED)
 
-            def _draw_judge(self, conn, round_ctx):
-                pass
-
-            def _run_exam(self, conn, round_ctx):
-                pass
-
-        result = _ThroughExam().run_round(TRIGGER_SCHEDULED)
-
-        assert result["status"] == RoundState.FAILED.value
+        assert result["status"] == RoundState.ABANDONED.value
+        assert "exhausted" in result["error"]
         row = _round_row(db, result["round_id"])
-        assert row["status"] == RoundState.FAILED.value
-        assert "not implemented" in row["error_message"]
-        assert "grading" in row["error_message"]
-        assert "G.5.9" in row["error_message"]
+        assert row["status"] == RoundState.ABANDONED.value
+        assert "exhausted" in row["error_message"]
         assert row["completed_at"] is not None
 
     def test_stage_failure_marks_round_failed_with_stage_prefix(self, db):

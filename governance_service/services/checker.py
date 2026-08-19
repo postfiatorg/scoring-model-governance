@@ -344,12 +344,26 @@ def _features(
 
 
 def _guard_features_present(
-    dimension: str, needed: tuple[str, ...], values: dict[str, dict[str, Any]]
+    dimension: str,
+    needed: tuple[str, ...],
+    values: dict[str, dict[str, Any]],
+    entries: list[dict[str, Any]],
 ) -> None:
     """A feature absent from every entry means a mis-curated row — without
-    this guard it would silently make all validators identical."""
+    this guard it would silently make all validators identical.
+
+    Flat field features are judged by key presence: production data can
+    legitimately carry a field as null on every validator (devnet's
+    identity status does), and a null value already excludes the
+    validator from the dimension's comparisons — only a key the format
+    never carries means the row does not match the evidence format.
+    """
     for feature in needed:
-        if all(row.get(feature) is None for row in values.values()):
+        if feature in FIELD_FEATURES:
+            present = any(feature in entry for entry in entries)
+        else:
+            present = any(row.get(feature) is not None for row in values.values())
+        if not present:
             raise CheckerError(
                 f"Rules feature {feature!r} for dimension {dimension!r} is "
                 f"absent from every validator entry; the rules row does not "
@@ -486,7 +500,7 @@ def check_answer(
     ceilings: dict[str, int] = {}
     if rules.consensus_ceiling == CEILING_WORST_WINDOW_FLOOR:
         window_values = _features(request, entries, WINDOW_FEATURES)
-        _guard_features_present("consensus", WINDOW_FEATURES, window_values)
+        _guard_features_present("consensus", WINDOW_FEATURES, window_values, entries)
         for validator_id, score in sorted(scores.items()):
             ceiling = _ceiling(window_values.get(validator_id, {}))
             if ceiling is None:
@@ -507,7 +521,7 @@ def check_answer(
 
     for dimension, needed in sorted(rules.equality.items()):
         values = _features(request, entries, needed)
-        _guard_features_present(dimension, needed, values)
+        _guard_features_present(dimension, needed, values, entries)
         groups: dict[str, list[str]] = {}
         for validator_id in sorted(scores):
             row = values.get(validator_id)
@@ -532,7 +546,7 @@ def check_answer(
 
     for dimension, needed in sorted(rules.ordering.items()):
         values = _features(request, entries, needed)
-        _guard_features_present(dimension, needed, values)
+        _guard_features_present(dimension, needed, values, entries)
         comparable = [
             validator_id
             for validator_id in sorted(scores)
