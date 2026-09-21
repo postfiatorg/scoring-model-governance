@@ -16,7 +16,7 @@
 # Rows exist for the versions the exam corpus can currently contain: v5
 # (the constructed edge-case catalogue's template, verified against the
 # vendored production request from testnet round 15) and the current-era
-# v8, v9, and v10. A historical corpus item on another version
+# v8, v9, v10, and v11. A historical corpus item on another version
 # fail-closes with the missing row named; curating that row is the fix.
 
 v5:
@@ -86,6 +86,32 @@ v10:
   # output-key wording ("never emit an empty, whitespace, or
   # quote-character key") is already covered by the structural checks.
   instructions_sha256: b95342847589fcf6090e44880246fdbe6df7da027f198b0166890608865efb1f
+  equality:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    software: [server_version, base_fee]
+    diversity: [concentration_country_count, concentration_family_count]
+    identity: [domain, domain_verified, identity]
+  ordering:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    diversity: [concentration_country_count, concentration_family_count]
+  consensus_ceiling: worst_window_floor
+  multiples_of_5: [reliability, software, diversity, identity]
+
+v11:
+  # v11 is v10 plus the `fails_minimum_safe_version` verdict: the scoring
+  # service compares each validator's server_version with the network's
+  # minimum safe version (a missing or unreadable version fails it), and
+  # the text sets the software sub-score of a validator that fails it to
+  # exactly 0 while leaving every other sub-score alone ("it affects no
+  # other sub-score, and a false value has no effect at all"). v10's
+  # rules carry over unchanged. Software equality
+  # needs no new feature: the verdict is derived from server_version
+  # against one per-round minimum, so identical server_version already
+  # implies an identical verdict. The zero itself is a closed-form rule
+  # no existing check kind expresses, so it stays with the judge.
+  instructions_sha256: 5a10d87f8128ec63ca54f7cf1e7b1436ad4860cf3c4f8a0c5a6f2917e18e5839
   equality:
     consensus: [agreement_1h, agreement_24h, agreement_30d]
     reliability: [agreement_1h, agreement_24h, agreement_30d]
