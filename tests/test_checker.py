@@ -153,7 +153,7 @@ def _check(request, rules_path, overrides=None, drop=(), extra=None):
 
 def test_shipped_rules_cover_the_vendored_real_round():
     rows = load_rules()
-    assert {row.version for row in rows.values()} == {"v5", "v8", "v9", "v10"}
+    assert {row.version for row in rows.values()} == {"v5", "v8", "v9", "v10", "v11"}
     assert resolve_version(_template()).version == "v5"
 
 
@@ -199,6 +199,15 @@ def test_shipped_rows_carry_the_curated_rules_exactly():
     }
     assert v9.consensus_ceiling == "worst_window_floor"
     assert v9.multiples_of_5 == ("reliability", "software", "diversity", "identity")
+
+    for carried_over in ("v10", "v11"):
+        row = rows[carried_over]
+        assert (row.equality, row.ordering, row.consensus_ceiling, row.multiples_of_5) == (
+            v9.equality,
+            v9.ordering,
+            v9.consensus_ceiling,
+            v9.multiples_of_5,
+        )
 
 
 def test_unknown_instructions_fail_closed():

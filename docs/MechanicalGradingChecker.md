@@ -96,6 +96,17 @@ never enter a row and remain the judge's. The current rows:
   justified by nothing but the flag is exactly what the text forbids.
   The added output-key wording ("never emit an empty, whitespace, or
   quote-character key") is already covered by the structural checks.
+- **v11** — v10 plus the `fails_minimum_safe_version` verdict: the
+  scoring service compares each validator's `server_version` with the
+  network's minimum safe version (a missing or unreadable version fails
+  it), and the text sets the software sub-score of a validator that
+  fails it to exactly 0 while leaving every other sub-score alone. The
+  rules carry over unchanged. Software equality
+  needs no new feature, because the verdict is derived from
+  `server_version` against one per-round minimum, so identical
+  `server_version` already implies an identical verdict. The zero
+  itself is closed-form, but no existing check kind expresses "this
+  field forces this sub-score", so it stays judge-owned until one does.
 
 Two stated rules are deliberately not encoded. v9's "when only the
 30-day window is degraded and the recent windows are clean, score at
