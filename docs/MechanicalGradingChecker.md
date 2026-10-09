@@ -107,6 +107,18 @@ never enter a row and remain the judge's. The current rows:
   `server_version` already implies an identical verdict. The zero
   itself is closed-form, but no existing check kind expresses "this
   field forces this sub-score", so it stays judge-owned until one does.
+- **v12** — v11 plus advisory diversity: the network computes the
+  authoritative diversity sub-score in code (diversity formula v1 in
+  `dynamic-unl-scoring`, `docs/DeterministicDiversity.md`) and discards
+  the model's value, and the text tells the model so. A defect in a value
+  the network discards has no production effect, so the checker does not
+  grade it: diversity leaves the equality, ordering, and banding rows. That
+  is a second curation principle next to instruction-relativity, stated in
+  the rules file header. Everything else carries over from v11. The new
+  rule that the reasoning string must not mention diversity, country,
+  provider, concentration, or geography is closed-form, but no check kind
+  inspects reasoning text and recognising a location or provider name
+  takes judgment, so it stays judge-owned until one does.
 
 Two stated rules are deliberately not encoded. v9's "when only the
 30-day window is degraded and the recent windows are clean, score at

@@ -153,7 +153,7 @@ def _check(request, rules_path, overrides=None, drop=(), extra=None):
 
 def test_shipped_rules_cover_the_vendored_real_round():
     rows = load_rules()
-    assert {row.version for row in rows.values()} == {"v5", "v8", "v9", "v10", "v11"}
+    assert {row.version for row in rows.values()} == {"v5", "v8", "v9", "v10", "v11", "v12"}
     assert resolve_version(_template()).version == "v5"
 
 
@@ -208,6 +208,14 @@ def test_shipped_rows_carry_the_curated_rules_exactly():
             v9.consensus_ceiling,
             v9.multiples_of_5,
         )
+
+    # v12 makes the model's diversity advisory: the network discards it, so
+    # no check on it stays in the row.
+    v12 = rows["v12"]
+    assert v12.equality == {k: v for k, v in v9.equality.items() if k != "diversity"}
+    assert v12.ordering == {k: v for k, v in v9.ordering.items() if k != "diversity"}
+    assert v12.multiples_of_5 == tuple(d for d in v9.multiples_of_5 if d != "diversity")
+    assert v12.consensus_ceiling == v9.consensus_ceiling
 
 
 def test_unknown_instructions_fail_closed():
