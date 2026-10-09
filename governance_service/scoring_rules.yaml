@@ -7,7 +7,9 @@
 # no row is a hard error, never a guess.
 #
 # Curation is instruction-relative and deliberately conservative: a row
-# enables only checks the version's own text states crisply. Prose rules
+# enables only checks the version's own text states crisply, and never a
+# check on a value the network replaces in code before use (from v12 the
+# model's diversity), since a defect there has no production effect. Prose rules
 # (guide bands, "where appropriate" penalties, judgment latitude) never
 # enter a row — they are the judge's to weigh. The rationale for every
 # inclusion and exclusion is docs/MechanicalGradingChecker.md; treat a
@@ -16,7 +18,7 @@
 # Rows exist for the versions the exam corpus can currently contain: v5
 # (the constructed edge-case catalogue's template, verified against the
 # vendored production request from testnet round 15) and the current-era
-# v8, v9, v10, and v11. A historical corpus item on another version
+# v8, v9, v10, v11, and v12. A historical corpus item on another version
 # fail-closes with the missing row named; curating that row is the fix.
 
 v5:
@@ -124,3 +126,25 @@ v11:
     diversity: [concentration_country_count, concentration_family_count]
   consensus_ceiling: worst_window_floor
   multiples_of_5: [reliability, software, diversity, identity]
+
+v12:
+  # v12 is v11 plus advisory diversity: the network computes the
+  # authoritative diversity sub-score in code (diversity formula v1,
+  # dynamic-unl-scoring docs/DeterministicDiversity.md) and discards the
+  # model's value. A defect in a discarded value has no production effect,
+  # so diversity leaves the equality, ordering, and banding rows. Everything
+  # else carries over from v11. The new rule that the reasoning string must
+  # not mention diversity, country, provider, concentration, or geography
+  # has no check kind that inspects reasoning text, so it stays with the
+  # judge.
+  instructions_sha256: e5fe9786f668d73aaa6777ca7faba6912129b9c47458b59ae90cffd0c418440f
+  equality:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+    software: [server_version, base_fee]
+    identity: [domain, domain_verified, identity]
+  ordering:
+    consensus: [agreement_1h, agreement_24h, agreement_30d]
+    reliability: [agreement_1h, agreement_24h, agreement_30d]
+  consensus_ceiling: worst_window_floor
+  multiples_of_5: [reliability, software, identity]
