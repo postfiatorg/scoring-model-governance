@@ -14,7 +14,7 @@ from governance_service.services.orchestrator import (
     RoundOrchestrator,
     RoundState,
 )
-from governance_service.services.pool_refresh import STATUS_COMPLETED
+from governance_service.services.pool_refresh import STATUS_COMPLETED, get_pool_members
 from governance_service.services.round_package import (
     BUNDLE_FILE_PATH,
     FreezeEligibilityError,
@@ -29,6 +29,7 @@ from governance_service.services.round_package import (
 
 INCUMBENT_REPO = "Qwen/Qwen3.6-27B-FP8"
 CHALLENGER_REPOS = ("google/gemma-4-31B-it", "Qwen/Qwen3-32B-FP8")
+POOL_RELEASE = "2026_06_01"
 
 FROZEN_AT = datetime(2026, 8, 6, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -39,10 +40,10 @@ def _seed_refresh(db, members=None, incumbent=INCUMBENT_REPO) -> int:
     cursor = db.cursor()
     cursor.execute(
         """
-        INSERT INTO pool_refreshes (status, completed_at)
-        VALUES (%s, NOW()) RETURNING id
+        INSERT INTO pool_refreshes (status, release_used, completed_at)
+        VALUES (%s, %s, NOW()) RETURNING id
         """,
-        (STATUS_COMPLETED,),
+        (STATUS_COMPLETED, POOL_RELEASE),
     )
     refresh_id = cursor.fetchone()[0]
     for hf_repo in members:
@@ -50,12 +51,13 @@ def _seed_refresh(db, members=None, incumbent=INCUMBENT_REPO) -> int:
         cursor.execute(
             """
             INSERT INTO pool_refresh_candidates
-                (refresh_id, hf_repo, revision, precision, weight_bytes,
+                (refresh_id, release, hf_repo, revision, precision, weight_bytes,
                  gated, is_incumbent, in_pool)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
             """,
             (
                 refresh_id,
+                POOL_RELEASE,
                 hf_repo,
                 profile.revision,
                 "fp8",
@@ -118,11 +120,11 @@ class TestEligibility:
         cursor.execute(
             """
             INSERT INTO pool_refresh_candidates
-                (refresh_id, hf_repo, revision, precision, weight_bytes,
+                (refresh_id, release, hf_repo, revision, precision, weight_bytes,
                  gated, is_incumbent, in_pool)
-            VALUES (%s, 'org/unknown-model', %s, 'fp8', 1, FALSE, FALSE, TRUE)
+            VALUES (%s, %s, 'org/unknown-model', %s, 'fp8', 1, FALSE, FALSE, TRUE)
             """,
-            (refresh_id, "cd" * 20),
+            (refresh_id, POOL_RELEASE, "cd" * 20),
         )
         db.commit()
         cursor.close()
@@ -135,11 +137,11 @@ class TestEligibility:
         cursor.execute(
             """
             INSERT INTO pool_refresh_candidates
-                (refresh_id, hf_repo, revision, precision, weight_bytes,
+                (refresh_id, release, hf_repo, revision, precision, weight_bytes,
                  gated, is_incumbent, in_pool)
-            VALUES (%s, %s, %s, 'fp8', 1, FALSE, TRUE, TRUE)
+            VALUES (%s, %s, %s, %s, 'fp8', 1, FALSE, TRUE, TRUE)
             """,
-            (refresh_id, INCUMBENT_REPO, "ef" * 20),
+            (refresh_id, POOL_RELEASE, INCUMBENT_REPO, "ef" * 20),
         )
         db.commit()
         cursor.close()
@@ -153,6 +155,76 @@ class TestEligibility:
 
         assert pool.incumbent.hf_repo == INCUMBENT_REPO
         assert [c.hf_repo for c in pool.challengers] == sorted(CHALLENGER_REPOS)
+
+    @pytest.mark.parametrize(
+        ("hf_repo", "revision"),
+        [
+            (CHALLENGER_REPOS[0], CURRENT_POOL_PROFILES[CHALLENGER_REPOS[0]].revision),
+            ("org/unused-audit-model", "ab" * 20),
+            (CHALLENGER_REPOS[0], "ef" * 20),
+        ],
+        ids=["duplicate-member", "unmapped-audit-member", "old-revision"],
+    )
+    def test_fallback_freezes_only_the_published_release(self, db, hf_repo, revision):
+        refresh_id = _seed_refresh(db)
+        cursor = db.cursor()
+        cursor.execute(
+            """
+            INSERT INTO pool_refresh_candidates
+                (refresh_id, release, hf_repo, revision, precision, weight_bytes,
+                 gated, is_incumbent, in_pool)
+            VALUES (%s, '2026_06_25', %s, %s, 'fp8', 1, FALSE, FALSE, TRUE)
+            """,
+            (refresh_id, hf_repo, revision),
+        )
+        db.commit()
+
+        pool = load_frozen_pool(db)
+        published = get_pool_members(db, refresh_id)
+
+        assert pool.refresh_id == refresh_id
+        assert pool.incumbent == CURRENT_POOL_PROFILES[INCUMBENT_REPO]
+        assert pool.challengers == [
+            CURRENT_POOL_PROFILES[repo] for repo in sorted(CHALLENGER_REPOS)
+        ]
+        assert {
+            (member["hf_repo"], member["revision"], member["is_incumbent"])
+            for member in published
+        } == {
+            (pool.incumbent.hf_repo, pool.incumbent.revision, True),
+            *((member.hf_repo, member.revision, False) for member in pool.challengers),
+        }
+        cursor.execute(
+            """
+            SELECT release, hf_repo, revision FROM pool_refresh_candidates
+            WHERE refresh_id = %s AND release = '2026_06_25' AND in_pool
+            """,
+            (refresh_id,),
+        )
+        assert cursor.fetchall() == [("2026_06_25", hf_repo, revision)]
+        cursor.close()
+
+    def test_discarded_release_cannot_supply_a_missing_challenger(self, db):
+        refresh_id = _seed_refresh(db, members=(INCUMBENT_REPO, CHALLENGER_REPOS[0]))
+        cursor = db.cursor()
+        cursor.execute(
+            """
+            INSERT INTO pool_refresh_candidates
+                (refresh_id, release, hf_repo, revision, precision, weight_bytes,
+                 gated, is_incumbent, in_pool)
+            VALUES (%s, '2026_06_25', %s, %s, 'fp8', 1, FALSE, FALSE, TRUE)
+            """,
+            (
+                refresh_id,
+                CHALLENGER_REPOS[1],
+                CURRENT_POOL_PROFILES[CHALLENGER_REPOS[1]].revision,
+            ),
+        )
+        db.commit()
+        cursor.close()
+
+        with pytest.raises(FreezeEligibilityError, match="requires at least 2"):
+            load_frozen_pool(db)
 
     def test_eligibility_error_carries_evidence(self, db):
         _seed_refresh(db, members=(INCUMBENT_REPO,))

@@ -143,10 +143,11 @@ def load_frozen_pool(conn) -> FrozenPool:
 
     cursor.execute(
         """
-        SELECT hf_repo, revision, is_incumbent
-        FROM pool_refresh_candidates
-        WHERE refresh_id = %s AND in_pool
-        ORDER BY hf_repo
+        SELECT c.hf_repo, c.revision, c.is_incumbent
+        FROM pool_refresh_candidates c
+        JOIN pool_refreshes r ON r.id = c.refresh_id
+        WHERE c.refresh_id = %s AND c.in_pool AND c.release = r.release_used
+        ORDER BY c.hf_repo
         """,
         (refresh_id,),
     )
